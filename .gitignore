@@ -1,3 +1,5 @@
+logs/
+test_lora_trainer/
 test_trainer/
 .python-version
 __pycache__
