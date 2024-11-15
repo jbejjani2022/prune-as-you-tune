@@ -1,4 +1,5 @@
 logs/
+test_lora_prune_trainer/
 test_lora_trainer/
 test_trainer/
 .python-version
