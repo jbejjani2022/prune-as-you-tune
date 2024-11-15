@@ -55,7 +55,8 @@ if __name__ == "__main__":
         r=256,               # Rank of LoRA
         lora_alpha=16,       # Scaling factor
         lora_dropout=0.1,    # Dropout rate
-        target_modules=target_modules
+        target_modules=target_modules,
+        use_rslora=True      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
     )
     
     # Apply PEFT with LoRA
