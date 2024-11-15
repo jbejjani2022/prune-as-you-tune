@@ -59,24 +59,22 @@ class PruningCallback(TrainerCallback):
                     assert("lora" not in name)
                     self.params.append((module, 'weight'))
 
+    # Callback function: called at the end of each training epoch
     def on_epoch_end(self, args, state, control, **kwargs):
-        print(f"\nPruning 10% of non-LoRA weights after epoch {state.epoch}")
-        self.prune_non_lora_weights()
-        self.report_local_sparsity()
-        self.ptg += 0.2
+        print(f"\nPruning {self.ptg}% of pretrained weights after epoch {state.epoch}")
+        self.prune_pretrained()
+        self.compute_global_sparsity()
 
-    def prune_non_lora_weights(self):
+    # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
+    # Retains previous mask, allowing cumulative pruning
+    def prune_pretrained(self):
         prune.global_unstructured(
             self.params,
             pruning_method=self.method,
             amount=self.ptg,
         )
-        
-        # Remove the pruning reparameterization to make pruning permanent
-        for (module, name) in self.params:
-            prune.remove(module, name)
             
-    def report_local_sparsity(self):
+    def compute_global_sparsity(self):
         print(
             "sparsity: {:.2f}%".format(
                 100. * float(
@@ -87,6 +85,13 @@ class PruningCallback(TrainerCallback):
                 )
             )
         )
+        
+    # Removes the pruning reparameterization to make pruning permanent
+    # Necessary in order to consolidate pruning changes permanently or export the model
+    # Do not execute until all pruning iterations have been completed
+    def remove(self):
+        for (module, name) in self.params:
+            prune.remove(module, name)
 
 
 if __name__ == "__main__":
@@ -151,3 +156,6 @@ if __name__ == "__main__":
     )
     
     trainer.train()
+
+    # Permanently consolidate pruning masks
+    pruning_callback.remove()
