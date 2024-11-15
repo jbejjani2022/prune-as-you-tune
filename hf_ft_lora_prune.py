@@ -92,8 +92,9 @@ class PruningCallback(TrainerCallback):
 if __name__ == "__main__":
     dataset = load_dataset(dataset)
     tokenized_datasets = dataset.map(tokenize_function, batched=True)
-    small_train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(1000))  # use range(10) or less for rapid testing
-    small_eval_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(1000))
+    n_samples = 1000   # use 10 or less for rapid testing
+    small_train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(n_samples))
+    small_eval_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(n_samples))
 
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=5)
 
