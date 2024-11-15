@@ -1,4 +1,4 @@
-# Fine tunes `model_name` on `dataset` using LoRA
+# Fine tunes `model_name` on `dataset` using rsLoRA
 # Saves checkpoint to `output_dir`
 
 
@@ -36,11 +36,12 @@ if __name__ == "__main__":
 
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=5)
 
-    # Target LoRA modules - the attention and MLP layers
+    # A LoRA adapter will be attached to each target module
+    # typically the attention and MLP layers of a transformer
     target_modules = []
-    # Iterate over the layers of the transformer to find LoRA adapter target modules
     num_layers = len(model.distilbert.transformer.layer)
     target = "distilbert.transformer.layer"
+    # Iterate over the transformer layers to get target modules
     for i in range(num_layers):
         target_modules.extend([
             f"{target}.{i}.attention.q_lin",    # Query projection in attention
