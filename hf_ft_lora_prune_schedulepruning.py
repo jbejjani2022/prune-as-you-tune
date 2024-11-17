@@ -16,8 +16,7 @@ from typing_extensions import Annotated
 
 
 model_name = "distilbert-base-uncased" # "google-bert/bert-base-cased"
-old_dataset_path = "bookcorpus/bookcorpus"
-new_dataset_path = "yelp_review_full"
+dataset_path = "yelp_review_full"
 output_dir = "test_lora_prune_trainer"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
@@ -35,9 +34,13 @@ def compute_metrics(eval_preds):
 
 
 class PruningCallback(TrainerCallback):
-    def __init__(self, model, ptg=0.1):
+    # AD 2024-11-17: added `prune_every_epoch` parameter to vary pruning frequency
+    # AG 2024-11-17: removed defaults for intializing PruningCallback so we can just define the defaults in the main function
+    def __init__(self, model, ptg, prune_every_epoch, prune_first):
         self.model = model
         self.ptg = ptg  # percentage of params to prune
+        self.prune_every_epoch = prune_every_epoch
+        self.prune_first = prune_first
         self.method = prune.L1Unstructured  # pruning method
         self.params = []  # params to prune, list of tuples: (module, param_name)
 
@@ -62,10 +65,20 @@ class PruningCallback(TrainerCallback):
             self.total_params += param.numel()
 
     # Function called at the end of each training epoch
+    def on_epoch_start(self, args, state, control, **kwargs):
+        if self.prune_first:
+            if state.epoch % self.prune_every_epoch == 0:
+                print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights before epoch {state.epoch}")
+                self.prune_pretrained()
+                self.report_sparsity()
+    
     def on_epoch_end(self, args, state, control, **kwargs):
-        print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights after epoch {state.epoch}")
-        self.prune_pretrained()
-        self.report_sparsity()
+        if not self.prune_first:
+            print(state.epoch)
+            if state.epoch % self.prune_every_epoch == 0:
+                print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights after epoch {state.epoch}")
+                self.prune_pretrained()
+                self.report_sparsity()
 
     # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
     # Retains previous mask, allowing cumulative pruning
@@ -101,31 +114,13 @@ class PruningCallback(TrainerCallback):
 
 def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 10,
           num_labels : Annotated[Optional[int], typer.Option(help="Number of labels for classification")] = 5,
-          ft_dataset : Annotated[Optional[str], typer.Option(help="Fine-tuning dataset - old, new, or mix")] = "mix",
-          eval_dataset : Annotated[Optional[str], typer.Option(help="Evaluation dataset - old, new, or mix")] = "new",
-          old_data_ptg_ft : Annotated[Optional[float], typer.Option(help="If mix: percent of old dataset to mix in for finetuning")] = 0.2,
-          old_data_ptg_eval : Annotated[Optional[float], typer.Option(help="If mix: percent of old dataset to mix in for eval")] = 0.2,):
-    new_dataset = load_dataset(new_dataset_path)
-    old_dataset = load_dataset(old_dataset_path) # AG 2024-11-16: kind of problematic - 1.1G
-
-    
-    if ft_dataset == "old":
-        train_dataset = old_dataset["train"]
-    elif ft_dataset == "new":
-        train_dataset = new_dataset["train"]
-    else:
-        train_dataset = interleave_datasets([new_dataset["train"], old_dataset["train"]], probabilities=[1-old_data_ptg_ft, old_data_ptg_ft], seed=42, stopping_strategy="first_exhausted")
-
-    if eval_dataset == "old":
-        test_dataset = old_dataset["test"]
-    elif eval_dataset == "new":
-        test_dataset = new_dataset["test"]
-    else: 
-        test_dataset = interleave_datasets([new_dataset["test"], old_dataset["test"]], probabilities=[1-old_data_ptg_eval, old_data_ptg_eval], seed=42, stopping_strategy="first_exhausted")
-
-    print("DEBUG", type(train_dataset))
-    small_train_dataset = train_dataset.shuffle(seed=42).select(range(n_samples))
-    small_eval_dataset = test_dataset.shuffle(seed=42).select(range(n_samples))
+          ptg : Annotated[Optional[float], typer.Option(help="Percentage of parameters to prune per pruning call")] = 0.1,
+          prune_every_epoch : Annotated[Optional[int], typer.Option(help="Number of epochs to wait for before pruning")] = 1,
+          prune_first : Annotated[Optional[bool], typer.Option(help="Prune before finetuning")] = False):
+    dataset = load_dataset(dataset_path)
+    tokenized_datasets = dataset.map(tokenize_function, batched=True)
+    small_train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(n_samples))
+    small_eval_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(n_samples))
 
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
 
@@ -172,8 +167,7 @@ def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samp
     )
     
     # Create callback
-    # TODO make ptg a parameter
-    pruning_callback = PruningCallback(model, ptg=0.05)
+    pruning_callback = PruningCallback(model, ptg=ptg, prune_every_epoch=prune_every_epoch, prune_first=prune_first)
 
     trainer = Trainer(
         model=model,

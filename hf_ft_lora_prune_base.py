@@ -16,8 +16,7 @@ from typing_extensions import Annotated
 
 
 model_name = "distilbert-base-uncased" # "google-bert/bert-base-cased"
-old_dataset_path = "bookcorpus/bookcorpus"
-new_dataset_path = "yelp_review_full"
+dataset_path = "yelp_review_full"
 output_dir = "test_lora_prune_trainer"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
@@ -100,32 +99,11 @@ class PruningCallback(TrainerCallback):
 
 
 def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 10,
-          num_labels : Annotated[Optional[int], typer.Option(help="Number of labels for classification")] = 5,
-          ft_dataset : Annotated[Optional[str], typer.Option(help="Fine-tuning dataset - old, new, or mix")] = "mix",
-          eval_dataset : Annotated[Optional[str], typer.Option(help="Evaluation dataset - old, new, or mix")] = "new",
-          old_data_ptg_ft : Annotated[Optional[float], typer.Option(help="If mix: percent of old dataset to mix in for finetuning")] = 0.2,
-          old_data_ptg_eval : Annotated[Optional[float], typer.Option(help="If mix: percent of old dataset to mix in for eval")] = 0.2,):
-    new_dataset = load_dataset(new_dataset_path)
-    old_dataset = load_dataset(old_dataset_path) # AG 2024-11-16: kind of problematic - 1.1G
-
-    
-    if ft_dataset == "old":
-        train_dataset = old_dataset["train"]
-    elif ft_dataset == "new":
-        train_dataset = new_dataset["train"]
-    else:
-        train_dataset = interleave_datasets([new_dataset["train"], old_dataset["train"]], probabilities=[1-old_data_ptg_ft, old_data_ptg_ft], seed=42, stopping_strategy="first_exhausted")
-
-    if eval_dataset == "old":
-        test_dataset = old_dataset["test"]
-    elif eval_dataset == "new":
-        test_dataset = new_dataset["test"]
-    else: 
-        test_dataset = interleave_datasets([new_dataset["test"], old_dataset["test"]], probabilities=[1-old_data_ptg_eval, old_data_ptg_eval], seed=42, stopping_strategy="first_exhausted")
-
-    print("DEBUG", type(train_dataset))
-    small_train_dataset = train_dataset.shuffle(seed=42).select(range(n_samples))
-    small_eval_dataset = test_dataset.shuffle(seed=42).select(range(n_samples))
+          num_labels : Annotated[Optional[int], typer.Option(help="Number of labels for classification")] = 5,):
+    dataset = load_dataset(dataset_path)
+    tokenized_datasets = dataset.map(tokenize_function, batched=True)
+    small_train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(n_samples))
+    small_eval_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(n_samples))
 
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
 
