@@ -10,6 +10,8 @@ from peft import LoraConfig, get_peft_model
 import torch.nn.utils.prune as prune
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import copy
 
 
 model_name = "distilbert-base-uncased" # "google-bert/bert-base-cased"
@@ -28,6 +30,114 @@ def compute_metrics(eval_preds):
     logits, labels = eval_preds
     predictions = np.argmax(logits, axis=-1)   # For classification tasks
     return metric.compute(predictions=predictions, references=labels)
+
+
+#Loss TODO:
+# 1) experiment interface (should be able to turn on/off KD loss, standard loss regularization, and vary parameters)
+# 2) run a set of experiments, with all terms in the loss function = on, for 3 values of alpha x 3 values of temp. should give a baseline to inform next steps
+# LoRA TODO:
+# once happy with loss function design:
+# 1) experiment with alternative initializations for LoRA adaptors.
+# 2) build init prior into the loss function
+
+class CustomTrainer(Trainer):
+    def __init__(self, teacher_model, alpha=0.8, temp=2, **kwargs):
+        super().__init__(**kwargs)
+        self.teacher_model = teacher_model.eval() #TODO: still needed?
+        self.alpha = alpha
+        self.temp = temp
+
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): #TODO: is this the best way to handle num_items_in_batch parameter?
+        # STANDARD LOSS
+        outputs = model(**inputs)
+        logits = outputs.logits
+        labels = inputs.get("labels")
+        # cross-entropy loss
+        loss_fct = nn.CrossEntropyLoss()
+        std_loss = loss_fct(logits, labels)
+        # L2 regularization
+        lora_params = [param for name, param in model.named_parameters() if "lora" in name]
+        lora_l2 = sum(torch.sum(param ** 2) for param in lora_params)
+        # strength of regularization term
+        lambda_lora = 1e-5
+        std_loss += lambda_lora * lora_l2
+
+        # KD-LOSS
+        teach_outputs = model(**inputs)
+        teach_logits = outputs.logits
+        # temperature
+        student_probs = F.log_softmax(logits / self.temp, dim=1)
+        teacher_probs = F.softmax(teach_logits / self.temp, dim=1)
+        # KL divergence loss
+        kd_loss = F.kl_div(student_probs, teacher_probs, reduction='batchmean') * (self.temp ** 2)
+
+        loss = self.alpha * std_loss + (1-self.alpha) * kd_loss
+        
+        return (loss, outputs) if return_outputs else loss
+
+
+"""
+ChatGPT starter template, for replication of KD loss from PC-LoRA Paper. 
+class CustomTrainerWithKD(Trainer):
+    def __init__(self, teacher_model, alpha=0.5, feature_layers=None, **kwargs):
+        super().__init__(**kwargs)
+        self.teacher_model = teacher_model.eval()
+        for param in self.teacher_model.parameters():
+            param.requires_grad = False
+        self.alpha = alpha
+        self.feature_layers = feature_layers or []  # List of layer names to extract features
+        self.student_features = {}
+        self.teacher_features = {}
+        self._register_hooks()
+
+    def _register_hooks(self):
+        def get_activation(name, features):
+            def hook(model, input, output):
+                self.student_features[name] = output
+            return hook
+
+        # Register hooks for student model
+        for name, module in self.model.named_modules():
+            if name in self.feature_layers:
+                module.register_forward_hook(get_activation(name, self.student_features))
+
+        # Register hooks for teacher model
+        def get_teacher_activation(name):
+            def hook(model, input, output):
+                self.teacher_features[name] = output
+            return hook
+
+        for name, module in self.teacher_model.named_modules():
+            if name in self.feature_layers:
+                module.register_forward_hook(get_teacher_activation(name))
+
+    def compute_loss(self, model, inputs, return_outputs=False):
+        # Forward pass for student
+        outputs = model(**inputs)
+        logits = outputs.logits
+        labels = inputs.get("labels")
+
+        # Compute task loss
+        loss_fct = nn.CrossEntropyLoss()
+        L_task = loss_fct(logits, labels)
+
+        # Forward pass for teacher
+        with torch.no_grad():
+            self.teacher_model(**inputs)
+
+        # Compute feature KD loss
+        L_featKD = 0.0
+        for layer in self.feature_layers:
+            student_feat = self.student_features.get(layer)
+            teacher_feat = self.teacher_features.get(layer)
+            if student_feat is not None and teacher_feat is not None:
+                L_featKD += nn.MSELoss()(student_feat, teacher_feat)
+        L_featKD /= len(self.feature_layers)
+
+        # Combine losses
+        L_total = self.alpha * L_task + (1 - self.alpha) * L_featKD
+
+        return (L_total, outputs) if return_outputs else L_total"""
 
 
 class PruningCallback(TrainerCallback):
@@ -103,6 +213,7 @@ if __name__ == "__main__":
     small_eval_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(n_samples))
 
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=5)
+    frozen_model = copy.deepcopy(model)
 
     # A LoRA adapter will be attached to each target module
     # typically the attention and MLP layers of a transformer
@@ -147,7 +258,23 @@ if __name__ == "__main__":
     # Create callback
     pruning_callback = PruningCallback(model, ptg=0.05)
 
+    """ 
+    # custom compute_loss function, standard Trainer
     trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=small_train_dataset,
+        eval_dataset=small_eval_dataset,
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
+        compute_loss=compute_loss,
+        callbacks=[pruning_callback]
+    )"""
+
+    trainer = CustomTrainer(
+        teacher_model=frozen_model,
+        alpha=0.8,
+        temp = 2,
         model=model,
         args=training_args,
         train_dataset=small_train_dataset,
@@ -156,6 +283,21 @@ if __name__ == "__main__":
         compute_metrics=compute_metrics,
         callbacks=[pruning_callback]
     )
+
+    """
+    # template for chatGPT suggested KD Loss
+    trainer = CustomTrainerWithKD(
+        teacher_model=frozen_model,
+        alpha=0.8,  # Weight for task loss
+        feature_layers=feature_layers,
+        model=model,
+        args=training_args,
+        train_dataset=small_train_dataset,
+        eval_dataset=small_eval_dataset,
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
+        callbacks=[pruning_callback]
+    )"""
     
     trainer.train()
 
