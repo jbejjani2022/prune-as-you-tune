@@ -63,34 +63,9 @@ class PruningCallback(TrainerCallback):
             if "lora" in name:
                 self.lora_params += param.numel()
             self.total_params += param.numel()
-
-    # Function called at the end of each training epoch
-    def on_epoch_start(self, args, state, control, **kwargs):
-        if self.prune_first:
-            if state.epoch % self.prune_every_epoch == 0:
-                print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights before epoch {state.epoch}")
-                self.prune_pretrained()
-                self.report_sparsity()
-    
-    def on_epoch_end(self, args, state, control, **kwargs):
-        if not self.prune_first:
-            print(state.epoch)
-            if state.epoch % self.prune_every_epoch == 0:
-                print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights after epoch {state.epoch}")
-                self.prune_pretrained()
-                self.report_sparsity()
-
-    # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
-    # Retains previous mask, allowing cumulative pruning
-    def prune_pretrained(self):
-        prune.global_unstructured(
-            self.params,
-            pruning_method=self.method,
-            amount=self.ptg,
-        )
-        
+   
     # Reports sparsity of frozen / pretrained weights, as well as overall model sparsity
-    def report_sparsity(self):
+    def _report_sparsity(self):
         zero_params = 0
         
         # Iterate over all parameters in the model
@@ -103,13 +78,60 @@ class PruningCallback(TrainerCallback):
 
         print(f"Pretrained Weight Sparsity: {sparsity_frozen:.2f}%")
         print(f"Overall Model Sparsity (including LoRA): {sparsity_all:.2f}%")
+        return sparsity_frozen, sparsity_all
         
+
+    # Internal pruning fn
+    # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
+    # Retains previous mask, allowing cumulative pruning
+    def _prune(self, args, state, control, **kwargs):
+        if state.epoch % self.prune_every_epoch == 0:
+            print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights before epoch {state.epoch}")
+            prune.global_unstructured(
+                self.params,
+                pruning_method=self.method,
+                amount=self.ptg,
+            )
+            self._report_sparsity()
+        
+    # Function called at the start of each training epoch
+    def on_epoch_start(self, args, state, control, **kwargs):
+        if self.prune_first:
+            self._prune(args, state, control, **kwargs)
+    
+    # Function called at the start of each training epoch
+    def on_epoch_end(self, args, state, control, **kwargs):
+        if self.prune_first:
+            self._prune(args, state, control, **kwargs)
+    
     # Removes the pruning reparameterization to make pruning permanent
     # Necessary in order to consolidate pruning changes permanently or export the model
     # Do not execute until all pruning iterations have been completed
     def remove(self):
         for (module, name) in self.params:
             prune.remove(module, name)
+
+# https://arxiv.org/pdf/1710.01878
+class AutomatedGradualPruningCallback(PruningCallback):
+    # AD 2024-11-17: added `prune_every_epoch` parameter to vary pruning frequency
+    # AG 2024-11-17: removed defaults for intializing PruningCallback so we can just define the defaults in the main function
+    def __init__(self, sparsity_end, pruning_steps):
+        super().__init__()
+        self.sparsity_end = sparsity_end
+        self.pruning_steps = pruning_steps
+
+    def _prune(self, args, state, control, **kwargs): 
+        if state.epoch % self.prune_every_epoch == 0:
+            # TODO test!
+            amount = self.sparsity_end - self.sparsity_end * (1 - state.epoch / (self.pruning_steps*self.prune_every_epoch)) ** 3
+            print(amount)
+            print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights before epoch {state.epoch}")
+            prune.global_unstructured(
+                self.params,
+                pruning_method=self.method,
+                amount=self.ptg,
+            )
+            self._report_sparsity()
 
 
 def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 10,
