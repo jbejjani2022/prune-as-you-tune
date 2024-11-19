@@ -1,5 +1,6 @@
 from transformers import TrainingArguments
 from peft import LoraConfig
+import sys
 
 from src.finetune_evaluators import BERTFineTuneEvaluator
 
@@ -7,16 +8,18 @@ from src.finetune_evaluators import BERTFineTuneEvaluator
 model = "distilbert-base-uncased"
 dataset = "imdb"
 pruning_method = "L1Unstructured"
-output_dir = 'test_trainer'
+output_dir = "logs"
+log_file = "log.txt"
+
+# Redirect stdout to the log file
+sys.stdout = open(log_file, "w")
 
 training_args = TrainingArguments(
     output_dir=output_dir,
     eval_strategy="epoch",      # Evaluate every epoch
     logging_strategy="epoch",   # Log after each epoch
-    logging_dir="./logs",       # Directory for logs
     save_strategy="no",
-    label_names=["labels"],
-    report_to="tensorboard",    # Enable TensorBoard logging
+    label_names=["labels"]
 )
 
 lora_config = LoraConfig(

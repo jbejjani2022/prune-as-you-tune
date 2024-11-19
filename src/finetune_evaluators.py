@@ -12,13 +12,15 @@ from peft import get_peft_model
 from src.evaluator import FineTuneEvaluator
 from src.kd_trainer import KDTrainer
 from src.pruner import PruningCallback
+from src.logger import LoggerCallback
 
 
 class BERTFineTuneEvaluator(FineTuneEvaluator):
     
     def __init__(self, model, dataset, training_args, lora_config, pruning_method):
         super().__init__(model, dataset, training_args, lora_config, pruning_method)
-        self.num_labels = len(set(dataset['train']['labels']))
+        self.num_labels = len(set(self.dataset['train']['label']))
+        print(f'num_labels = {self.num_labels}')
         self.model = AutoModelForSequenceClassification.from_pretrained(model, num_labels=self.num_labels)
         
         print(f'{self.train_dataset.num_rows} training samples')
@@ -52,7 +54,13 @@ class BERTFineTuneEvaluator(FineTuneEvaluator):
         predictions = np.argmax(logits, axis=-1)   # For classification tasks
         return self.metric.compute(predictions=predictions, references=labels)
     
-    def get_trainer(self, model):
+    def get_trainer(self, model, logger_callback=None, pruning_callback=None):
+        callbacks = []
+        if logger_callback:
+            callbacks.append(logger_callback)
+        if pruning_callback:
+            callbacks.append(pruning_callback)
+            
         return Trainer(
             model=model,
             args=self.training_args,
@@ -60,17 +68,23 @@ class BERTFineTuneEvaluator(FineTuneEvaluator):
             eval_dataset=self.eval_dataset,
             compute_metrics=self.compute_metrics,
             data_collator=self.data_collator,
+            callbacks=callbacks
         )
         
     def evaluate(self):
+        print('\n********* FULL FINETUNING *********\n')
         self.full_finetune()
+        print('\n********* LORA FINETUNING *********\n')
         self.lora_finetune(rslora = True)
+        print('\n********* LORA PRUNE FINETUNING *********\n')
         self.lora_prune_finetune(rslora = True)
+        print('\n********* LORA PRUNE KD FINETUNING *********\n')
         self.lora_prune_kd_finetune(rslora = True)
         
     def full_finetune(self):
         model = copy.deepcopy(self.model)
-        trainer = self.get_trainer(model)
+        logger = self.get_logger('full_finetune.csv', 'checkpoints/full_finetune')
+        trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         
     def lora_finetune(self, rslora):
@@ -78,7 +92,8 @@ class BERTFineTuneEvaluator(FineTuneEvaluator):
         self.lora_config.rslora = rslora
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
-        trainer = self.get_trainer(model)
+        logger = self.get_logger('lora_finetune.csv', 'checkpoints/lora_finetune')
+        trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         
     def lora_prune_finetune(self, rslora):
@@ -86,11 +101,11 @@ class BERTFineTuneEvaluator(FineTuneEvaluator):
         self.lora_config.rslora = rslora
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
-        trainer = self.get_trainer(model)
-        pruning_callback = PruningCallback(model, method=self.pruning_method, ptg=0.1)
-        trainer.callbacks = [pruning_callback]
+        pruner = PruningCallback(model, method=self.pruning_method, ptg=0.05)
+        logger = self.get_logger('lora_prune_finetune.csv', 'checkpoints/lora_prune_finetune')
+        trainer = self.get_trainer(model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
-        pruning_callback.remove()
+        pruner.remove()
         
     def lora_prune_kd_finetune(self, rslora):
         model = copy.deepcopy(self.model)
@@ -98,13 +113,19 @@ class BERTFineTuneEvaluator(FineTuneEvaluator):
         self.lora_config.rslora = rslora
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
-        trainer = self.get_kd_trainer(model, frozen_model)
-        pruning_callback = PruningCallback(model, method=self.pruning_method, ptg=0.1)
-        trainer.callbacks = [pruning_callback]
+        pruner = PruningCallback(model, method=self.pruning_method, ptg=0.05)
+        logger = self.get_logger('lora_prune_kd_finetune.csv', 'checkpoints/lore_prune_kd_finetune')
+        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
-        pruning_callback.remove()
+        pruner.remove()
         
-    def get_kd_trainer(self, student, teacher):
+    def get_kd_trainer(self, student, teacher, logger_callback=None, pruning_callback=None, ):
+        callbacks = []
+        if logger_callback:
+            callbacks.append(logger_callback)
+        if pruning_callback:
+            callbacks.append(pruning_callback)
+        
         return KDTrainer(
             teacher_model=teacher,
             alpha=0.8,
@@ -115,6 +136,9 @@ class BERTFineTuneEvaluator(FineTuneEvaluator):
             train_dataset=self.train_dataset,
             eval_dataset=self.eval_dataset,
             data_collator=self.data_collator,
+            callbacks=callbacks,
             compute_metrics=self.compute_metrics
         )
     
+    def get_logger(self, log_file, checkpoint_dir):
+        return LoggerCallback(log_file, checkpoint_dir)

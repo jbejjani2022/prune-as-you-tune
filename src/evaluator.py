@@ -19,8 +19,8 @@ class FineTuneEvaluator(ABC):
         self.tokenizer = AutoTokenizer.from_pretrained(model)
         # load and tokenize the dataset
         self.dataset = load_dataset(dataset).map(self.tokenize, batched=True)
-        self.train_dataset = self.dataset["train"].shuffle(seed=42)
-        self.eval_dataset = self.dataset["test"].shuffle(seed=42)
+        self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(10))
+        self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(10))
         self.training_args = training_args
         self.lora_config = lora_config
         self.pruning_method = pruning_method
