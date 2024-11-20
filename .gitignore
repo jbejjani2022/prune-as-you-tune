@@ -1,5 +1,6 @@
 *.txt
 *.csv
+slurm/
 checkpoints/
 logs/
 test_lora_prune_trainer/

@@ -27,7 +27,7 @@ class PruningCallback(TrainerCallback):
         # Iterate through all modules in the model
         # and get the frozen / non-LoRA parameters to be pruned
         # skip embedding layers to mitigate accuracy degradation
-        for name, module in model.named_modules():
+        for name, module in self.model.named_modules():
             # Ensure module has a weight attribute and parameter
             if hasattr(module, 'weight') and 'weight' in module._parameters:
                 # Filter for non-embedding and frozen / non-trainable parameters
@@ -39,7 +39,7 @@ class PruningCallback(TrainerCallback):
         self.total_params = 0
         self.lora_params = 0
 
-        for name, param in model.named_parameters():
+        for name, param in self.model.named_parameters():
             if "lora" in name:
                 self.lora_params += param.numel()
             self.total_params += param.numel()
