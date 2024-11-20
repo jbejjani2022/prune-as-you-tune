@@ -82,7 +82,7 @@ class FineTuneEvaluator(ABC):
         )
 
     # Returns a custom Knowledge-Distillation Trainer
-    def get_kd_trainer(self, student, teacher, logger_callback=None, pruning_callback=None):
+    def get_kd_trainer(self, student, teacher, logger_callback=None, pruning_callback=None, alpha=0.8, temp=2):
         callbacks = []
         if logger_callback:
             callbacks.append(logger_callback)
@@ -91,8 +91,8 @@ class FineTuneEvaluator(ABC):
         
         return KDTrainer(
             teacher_model=teacher,
-            alpha=0.8,
-            temp=2,
+            alpha=alpha,
+            temp=temp,
             lambda_lora=0,
             model=student,
             args=self.training_args,
@@ -112,15 +112,19 @@ class FineTuneEvaluator(ABC):
         return PruningCallback(model, method=self.pruning_method, ptg=ptg)
     
     # Evaluates four fine-tuning methods on the model
-    def evaluate(self):
-        print('\n********* FULL FINETUNING *********\n')
-        self.full_finetune()
-        print('\n********* LORA FINETUNING *********\n')
-        self.lora_finetune(rslora = True)
-        print('\n********* LORA PRUNE FINETUNING *********\n')
-        self.lora_prune_finetune(rslora = True)
-        print('\n********* LORA PRUNE KD FINETUNING *********\n')
-        self.lora_prune_kd_finetune(rslora = True)
+    def evaluate(self, i=15, **kwargs):
+        if (i & 1):
+            print('\n********* FULL FINETUNING *********\n')
+            self.full_finetune()
+        if (i & 2):
+            print('\n********* LORA FINETUNING *********\n')
+            self.lora_finetune(rslora = True)
+        if (i & 4):
+            print('\n********* LORA PRUNE FINETUNING *********\n')
+            self.lora_prune_finetune(rslora = True)
+        if (i & 8):
+            print('\n********* LORA PRUNE KD FINETUNING *********\n')
+            self.lora_prune_kd_finetune(True, **kwargs)
     
     # Fine-tunes all model weights
     def full_finetune(self):
@@ -152,14 +156,17 @@ class FineTuneEvaluator(ABC):
         pruner.remove()
     
     # Same as lora_prune_finetune but fine-tunes using KD loss via frozen teacher model
-    def lora_prune_kd_finetune(self, rslora):
+    def lora_prune_kd_finetune(self, rslora, **kwargs):
         model = copy.deepcopy(self.model)
         frozen_model = copy.deepcopy(model)
         self.lora_config.rslora = rslora
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
         pruner = self.get_pruner(model, ptg=0.05)
-        logger = self.get_logger('lora_prune_kd_finetune.csv', 'checkpoints/lore_prune_kd_finetune')
-        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
+
+        a = kwargs.get('alpha', 0)
+        b = kwargs.get('temp', 0)
+        logger = self.get_logger(f'lora_prune_kd_finetune_{a}_{b}.csv', 'checkpoints/lore_prune_kd_finetune')
+        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger, alpha=a, temp=b)
         trainer.train()
         pruner.remove()

@@ -40,4 +40,5 @@ evaluator = DistilBertFineTuneEvaluator(
     pruning_method=pruning_method,
     device=device
 )
-evaluator.evaluate()
+#evaluator.evaluate()
+evaluator.evaluate(8, alpha=0.8, temp=2)

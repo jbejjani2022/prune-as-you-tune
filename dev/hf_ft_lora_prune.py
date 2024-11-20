@@ -63,8 +63,8 @@ class CustomTrainer(Trainer):
         std_loss += lambda_lora * lora_l2
 
         # KD-LOSS
-        teach_outputs = model(**inputs)
-        teach_logits = outputs.logits
+        teach_outputs = self.teacher_model(**inputs)
+        teach_logits = teach_outputs.logits
         # temperature
         student_probs = F.log_softmax(logits / self.temp, dim=1)
         teacher_probs = F.softmax(teach_logits / self.temp, dim=1)

@@ -27,6 +27,7 @@ class KDTrainer(Trainer):
         lora_l2 = sum(torch.sum(param ** 2) for param in lora_params)
         # strength of regularization term
         std_loss += self.lambda_lora * lora_l2
+        
         # KD-LOSS
         # Forward pass for teacher model (no gradients required)
         teach_outputs = self.teacher_model(**inputs)
