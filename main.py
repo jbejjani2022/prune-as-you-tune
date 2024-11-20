@@ -9,7 +9,6 @@ from src.finetune_evaluators import DistilBertFineTuneEvaluator
 dataset = "imdb"
 pruning_method = "L1Unstructured"
 output_dir = "logs"
-log_file = "log.txt"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 training_args = TrainingArguments(
