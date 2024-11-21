@@ -21,9 +21,11 @@ class FineTuneEvaluator(ABC):
     
     def __init__(self, model_name : str,
                  dataset, training_args : TrainingArguments,
+                 max_length : int, # sets max token length per training sample - useful for reducing train time
                  lora_config : LoraConfig,
                  pruning_method : str,
-                 max_length : int, # sets max token length per training sample - useful for reducing train time
+                 alpha : float,
+                 temp : int,
                  device):
         
         # load tokenizer
@@ -43,11 +45,13 @@ class FineTuneEvaluator(ABC):
         print(f'num_labels = {self.num_labels}')
         self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
         self.model = self.model.to(device)
-        # hyperparameters for lora finetuning and pruning
+        # hyperparameters for lora finetuning, pruning, and KD
         self.training_args = training_args
         self.lora_config = lora_config
         self.lora_config.target_modules = self.get_target_modules()
         self.pruning_method = pruning_method
+        self.alpha = alpha
+        self.temp = temp
         
         print(self.model.device)
         
@@ -93,8 +97,8 @@ class FineTuneEvaluator(ABC):
         
         return KDTrainer(
             teacher_model=teacher,
-            alpha=0.8,
-            temp=2,
+            alpha=self.alpha,
+            temp=self.temp,
             lambda_lora=0,
             model=student,
             args=self.training_args,

@@ -35,9 +35,11 @@ lora_config = LoraConfig(
 evaluator = BertBaseFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
+    max_length=256,
     lora_config=lora_config,
     pruning_method=pruning_method,
-    max_length=256,
+    alpha=0.8,
+    temp=2,
     device=device
 )
 evaluator.evaluate()
