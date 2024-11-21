@@ -1,12 +1,11 @@
 from transformers import TrainingArguments
 from peft import LoraConfig, TaskType
-import sys
 import torch
 
-from src.finetune_evaluators import DistilBertFineTuneEvaluator
+from src.finetune_evaluators import DistilBertFineTuneEvaluator, BertBaseFineTuneEvaluator
 
 
-dataset = "imdb"
+dataset = "yelp_review_full"
 pruning_method = "L1Unstructured"
 output_dir = "logs"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -17,10 +16,10 @@ training_args = TrainingArguments(
     eval_strategy="epoch",      # Evaluate every epoch
     logging_strategy="epoch",   # Log after each epoch
     save_strategy="no",
-    label_names=["labels"],
     fp16=True,                  # Mixed precision training
-    per_device_train_batch_size = 32,
-    per_device_eval_batch_size = 32
+    per_device_train_batch_size = 64,
+    per_device_eval_batch_size = 64,
+    dataloader_num_workers=4
 )
 
 print(training_args.device)
@@ -33,11 +32,12 @@ lora_config = LoraConfig(
     use_rslora=True      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
 )
 
-evaluator = DistilBertFineTuneEvaluator(
+evaluator = BertBaseFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
     lora_config=lora_config,
     pruning_method=pruning_method,
+    max_length=256,
     device=device
 )
 evaluator.evaluate()

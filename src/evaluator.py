@@ -23,9 +23,11 @@ class FineTuneEvaluator(ABC):
                  dataset, training_args : TrainingArguments,
                  lora_config : LoraConfig,
                  pruning_method : str,
+                 max_length : int, # sets max token length per training sample - useful for reducing train time
                  device):
         
         # load tokenizer
+        self.max_length = max_length
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         # load and tokenize the dataset
@@ -56,7 +58,7 @@ class FineTuneEvaluator(ABC):
         
     # Tokenizes `examples` using `self.tokenizer
     def tokenize(self, examples):
-        return self.tokenizer(examples["text"], padding="max_length", truncation=True)
+        return self.tokenizer(examples["text"], padding="max_length", truncation=True, max_length=self.max_length)
     
     def compute_metrics(self, eval_preds):
         logits, labels = eval_preds
@@ -113,17 +115,14 @@ class FineTuneEvaluator(ABC):
     
     # Evaluates four fine-tuning methods on the model
     def evaluate(self):
-        print('\n********* FULL FINETUNING *********\n')
         self.full_finetune()
-        print('\n********* LORA FINETUNING *********\n')
         self.lora_finetune(rslora = True)
-        print('\n********* LORA PRUNE FINETUNING *********\n')
         self.lora_prune_finetune(rslora = True)
-        print('\n********* LORA PRUNE KD FINETUNING *********\n')
         self.lora_prune_kd_finetune(rslora = True)
     
     # Fine-tunes all model weights
     def full_finetune(self):
+        print('\n********* FULL FINETUNING *********\n')
         model = copy.deepcopy(self.model)
         logger = self.get_logger('full_finetune.csv', 'checkpoints/full_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
@@ -131,6 +130,7 @@ class FineTuneEvaluator(ABC):
     
     # Fine-tunes only LoRA adapters
     def lora_finetune(self, rslora):
+        print('\n********* LORA FINETUNING *********\n')
         model = copy.deepcopy(self.model)
         self.lora_config.rslora = rslora
         model = get_peft_model(model, self.lora_config)
@@ -141,6 +141,7 @@ class FineTuneEvaluator(ABC):
     
     # Interleaves LoRA fine-tuning with pruning of pretrained weights
     def lora_prune_finetune(self, rslora):
+        print('\n********* LORA PRUNE FINETUNING *********\n')
         model = copy.deepcopy(self.model)
         self.lora_config.rslora = rslora
         model = get_peft_model(model, self.lora_config)
@@ -153,6 +154,7 @@ class FineTuneEvaluator(ABC):
     
     # Same as lora_prune_finetune but fine-tunes using KD loss via frozen teacher model
     def lora_prune_kd_finetune(self, rslora):
+        print('\n********* LORA PRUNE KD FINETUNING *********\n')
         model = copy.deepcopy(self.model)
         frozen_model = copy.deepcopy(model)
         self.lora_config.rslora = rslora
