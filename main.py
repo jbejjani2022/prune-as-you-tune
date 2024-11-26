@@ -15,6 +15,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # pruning percentage per epoch = sparsity_target / num_train_epochs
 sparsity_target = 0.80
 
+save_dir = '80pct-sparsity-3epochs'
+
 training_args = TrainingArguments(
     output_dir=output_dir,
     num_train_epochs=3,
@@ -26,7 +28,6 @@ training_args = TrainingArguments(
     per_device_eval_batch_size = 64,
     dataloader_num_workers=4
 )
-
 print(training_args.device)
 
 lora_config = LoraConfig(
@@ -46,6 +47,13 @@ evaluator = BertBaseFineTuneEvaluator(
     sparsity_target=sparsity_target,
     alpha=0.8,
     temp=2,
-    device=device
+    device=device,
+    save_dir=save_dir
 )
-evaluator.evaluate()
+# evaluator.evaluate()
+evaluator.lora_prune_kd_interleave()
+
+# prune_full_finetune()
+# prune_lora_finetune()
+# lora_prune_interleave()
+# lora_prune_kd_interleave() 

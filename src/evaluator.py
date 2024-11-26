@@ -29,7 +29,8 @@ class FineTuneEvaluator(ABC):
                  sparsity_target : float,
                  alpha : float,
                  temp : int,
-                 device):
+                 device,
+                 save_dir : str):
         
         # load tokenizer
         self.max_length = max_length
@@ -56,6 +57,8 @@ class FineTuneEvaluator(ABC):
         self.sparsity_target = sparsity_target
         self.alpha = alpha
         self.temp = temp
+        
+        self.save_dir = save_dir
         
         # for the interleaving methods: how much to prune the pretrained weights each epoch
         # more specifically, this is the ptg by which sparsity of pruning-eligible params will increase each epoch
@@ -119,7 +122,7 @@ class FineTuneEvaluator(ABC):
     
     # Returns a callback that logs eval acc. and loss to `log_file` and saves model to `checkpoint_dir` after each epoch
     def get_logger(self, log_file, checkpoint_dir):
-        return LoggerCallback(log_file, checkpoint_dir)
+        return LoggerCallback(f'{self.save_dir}/{log_file}', f'{self.save_dir}/{checkpoint_dir}')
 
     # Returns a callback that prunes the pretrained weights of `model` by `ptg`% after each epoch
     def get_pruner(self, model, lora, ptg):

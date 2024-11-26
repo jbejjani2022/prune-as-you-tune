@@ -87,7 +87,7 @@ class PruningCallback(TrainerCallback):
                 zeros += (weight * mask == 0).sum().item()
                 # layer_sparsity = (weight * mask == 0).sum().item() / weight.numel()
         
-        print(f'Num pruning-eligible params: {total}')
+        print(f'Pruning-eligible params: {total}')
         print(f'Sparsity of pruning-eligible params: {zeros / total:.2%}')
         print(f'Overall model sparsity: {zeros / self.total_params:.2%}')
         
