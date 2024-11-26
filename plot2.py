@@ -6,10 +6,10 @@ import pandas as pd
 data_dir = 'experiments/bert-yelp-review-full/5epochs-25pct-sparsity'
 
 # csv files of interest, in `data_dir`
-files = ['full_finetune.csv', 'lora_finetune.csv', 'lora_prune_finetune.csv', 'lora_prune_kd_finetune.csv']
+files = ['lora_prune_kd_finetune_not_rs.csv', 'lora_prune_kd_finetune.csv']
 
 datasets = [pd.read_csv(f'{data_dir}/{f}') for f in files]
-labels = ['full fine-tuning', 'rsLoRA fine-tuning', 'rsLoRA fine-tuning, 5% pruning / epoch', 'rsLoRA fine-tuning, 5% pruning / epoch, KD loss']
+labels = ['LoRA', 'rsLoRA']
 
 # Create figure and subplots
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
@@ -23,16 +23,16 @@ for i, df in enumerate(datasets):
 ax1.set_title('Evaluation Accuracy')
 ax1.set_xlabel('Epoch')
 ax1.set_ylabel('Evaluation Accuracy')
+ax1.legend(title="Methods", loc='lower right')
 ax1.set_xticks(datasets[0]['epoch'])
 
 ax2.set_title('Evaluation Loss')
 ax2.set_xlabel('Epoch')
 ax2.set_ylabel('Evaluation Loss')
-ax2.legend(title="Methods", loc='upper left')
 ax2.set_xticks(datasets[0]['epoch'])
 
 # Set the overall title
-fig.suptitle('bert-base-uncased (110M) fine-tuning on yelp_review_full')
+fig.suptitle('bert-base-uncased (110M) fine-tuning on yelp_review_full (5% pruning / epoch, KD loss)')
 
 # Save the plot
 plt.tight_layout()
