@@ -10,9 +10,14 @@ pruning_method = "L1Unstructured"
 output_dir = "logs"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# how sparse the pruned models should be after all training epochs
+# for interleaving methods:
+# pruning percentage per epoch = sparsity_target / num_train_epochs
+sparsity_target = 0.80
+
 training_args = TrainingArguments(
     output_dir=output_dir,
-    num_train_epochs=8,
+    num_train_epochs=3,
     eval_strategy="epoch",      # Evaluate every epoch
     logging_strategy="epoch",   # Log after each epoch
     save_strategy="no",
@@ -38,6 +43,7 @@ evaluator = BertBaseFineTuneEvaluator(
     max_length=256,
     lora_config=lora_config,
     pruning_method=pruning_method,
+    sparsity_target=sparsity_target,
     alpha=0.8,
     temp=2,
     device=device
