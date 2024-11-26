@@ -13,14 +13,26 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
                  max_length,
                  lora_config,
                  pruning_method,
+                 sparsity_target,
                  alpha,
                  temp,
                  device):
         model_name = 'bert-base-uncased'
-        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, alpha, temp, device)
+        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device)
         
     def get_target_modules(self):
-        return ['query', 'key', 'value', 'intermediate.dense']
+        target_modules = [
+            # Self-Attention Modules
+            "query",
+            "key",
+            "value",
+            "attention.output.dense",
+
+            # Feed-Forward Modules
+            "intermediate.dense",
+            "output.dense"
+        ]
+        return target_modules
 
 
 class DistilBertFineTuneEvaluator(FineTuneEvaluator):
@@ -30,11 +42,12 @@ class DistilBertFineTuneEvaluator(FineTuneEvaluator):
                  max_length,
                  lora_config,
                  pruning_method,
+                 sparsity_target,
                  alpha,
                  temp,
                  device):
         model_name = 'distilbert-base-uncased'
-        super().__init__(model_name, dataset, training_args, lora_config, pruning_method, alpha, temp, max_length, device)
+        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device)
         
     def get_target_modules(self):
         return ['q_lin', 'k_lin', 'v_lin', 'lin1', 'lin2']
