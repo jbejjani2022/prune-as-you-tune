@@ -15,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # pruning percentage per epoch = sparsity_target / num_train_epochs
 sparsity_target = 0.50
 
-save_dir = '50pct-sparsity-5epochs-r64'
+save_dir = 'bert-imdb-r32-nomaxlen/50pct-sparsity-5epochs'
 
 training_args = TrainingArguments(
     output_dir=output_dir,
@@ -34,8 +34,8 @@ print(training_args.device)
 
 lora_config = LoraConfig(
     task_type=TaskType.SEQ_CLS,
-    r=64,                # Rank of LoRA
-    lora_alpha=64,       # Scaling factor
+    r=32,                # Rank of LoRA
+    lora_alpha=32,       # Scaling factor
     lora_dropout=0.1,    # Dropout rate
     use_rslora=True      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
 )
@@ -43,7 +43,7 @@ lora_config = LoraConfig(
 evaluator = BertBaseFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
-    max_length=256,
+    max_length=None,  # set max_length = None if you don't want to truncate samples
     lora_config=lora_config,
     pruning_method=pruning_method,
     sparsity_target=sparsity_target,

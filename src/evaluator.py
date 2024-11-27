@@ -23,7 +23,7 @@ class FineTuneEvaluator(ABC):
                  model_name : str,
                  dataset,
                  training_args : TrainingArguments,
-                 max_length : int, # sets max token length per training sample - useful for reducing train time
+                 max_length : int,  # sets max token length per training sample - useful for reducing train time
                  lora_config : LoraConfig,
                  pruning_method : str,
                  sparsity_target : float,
@@ -70,7 +70,11 @@ class FineTuneEvaluator(ABC):
         
     # Tokenizes `examples` using `self.tokenizer
     def tokenize(self, examples):
-        return self.tokenizer(examples["text"], padding="max_length", truncation=True, max_length=self.max_length)
+        if self.max_length is None:
+            return self.tokenizer(examples["text"], padding="max_length", truncation=True)
+        else:
+            print(f'max_length = {self.max_length}')
+            return self.tokenizer(examples["text"], padding="max_length", truncation=True, max_length=self.max_length)
     
     def compute_metrics(self, eval_preds):
         logits, labels = eval_preds

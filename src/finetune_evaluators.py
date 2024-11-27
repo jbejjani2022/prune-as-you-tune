@@ -17,7 +17,7 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
                  alpha,
                  temp,
                  device,
-                 save_dir : str):
+                 save_dir):
         model_name = 'bert-base-uncased'
         super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir)
         
@@ -47,7 +47,7 @@ class DistilBertFineTuneEvaluator(FineTuneEvaluator):
                  alpha,
                  temp,
                  device,
-                 save_dir : str):
+                 save_dir):
         model_name = 'distilbert-base-uncased'
         super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir)
         
