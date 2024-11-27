@@ -11,9 +11,13 @@ import torch.nn as nn
 
 class PruningCallback(TrainerCallback):
     
-    def __init__(self, model, method, lora, ptg=0.1):
+    def __init__(self, model, method, lora, sparsity_target, num_epochs):
         self.model = model
-        self.ptg = ptg  # percentage of params to prune
+        self.num_epochs = num_epochs
+        self.sparsity_target = sparsity_target
+        # for the interleaving methods: how much to prune the pretrained weights before each epoch
+        # more specifically, this is the ptg by which sparsity of pruning-eligible params will increase before each epoch
+        self.ptg = self.sparsity_target / self.num_epochs
         self.lora = lora  # whether the model is being fine-tuned with lora
         
         # pruning method
@@ -57,21 +61,30 @@ class PruningCallback(TrainerCallback):
 
     # Function called at the end of each training epoch
     def on_epoch_end(self, args, state, control, **kwargs):
-        current_sparsity = (state.epoch - 1) * self.ptg   # current sparsity of the pruning-eligible params
+        if state.epoch == self.num_epochs:
+            # Don't prune after final epoch
+            return
+        current_sparsity = (state.epoch) * self.ptg   # current sparsity of the pruning-eligible params
         epoch_ptg = self.ptg / (1 - current_sparsity)     # how much to prune the remaining pruning-eligible params in order to increase sparsity by self.ptg
-        print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights after epoch {state.epoch} (equivalent to pruning {epoch_ptg * 100:.2f}% of remaining, non-pruned weights)")
-        self.prune_pretrained(epoch_ptg)
+        self.prune_pretrained(state.epoch, epoch_ptg)
         self.report_sparsity()
 
     # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
     # Retains previous mask, allowing cumulative pruning
-    def prune_pretrained(self, ptg=None):
-        if not ptg:
-            ptg = self.ptg
+    def prune_pretrained(self, epoch, epoch_ptg=None):
+        if not epoch_ptg:
+            assert(epoch == 0)
+            epoch_ptg = self.ptg
+        if epoch == 0:
+            sparsity_increase = epoch_ptg
+        else:
+            sparsity_increase = self.ptg
+        print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights before epoch {epoch + 1}, increasing sparsity of pretrained weights by {sparsity_increase * 100:.2f}%")
+
         prune.global_unstructured(
             self.params,
             pruning_method=self.method,
-            amount=ptg,  # percentage of REMAINING (non-pruned) params to prune
+            amount=epoch_ptg,  # percentage of REMAINING (non-pruned) params to prune
         )
         
     # Reports sparsity of pruning-eligible params, as well as overall model sparsity

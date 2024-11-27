@@ -30,8 +30,8 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
             "attention.output.dense",
 
             # Feed-Forward Modules
-            # "intermediate.dense",
-            # "output.dense"
+            "intermediate.dense",
+            "output.dense"
         ]
         return target_modules
 
