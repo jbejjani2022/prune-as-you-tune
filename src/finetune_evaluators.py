@@ -7,18 +7,52 @@ from src.evaluator import FineTuneEvaluator
 
 
 class BertBaseFineTuneEvaluator(FineTuneEvaluator):
-    def __init__(self, dataset, training_args, lora_config, pruning_method, device):
+    def __init__(self,
+                 dataset,
+                 training_args,
+                 max_length,
+                 lora_config,
+                 pruning_method,
+                 sparsity_target,
+                 alpha,
+                 temp,
+                 device,
+                 save_dir):
         model_name = 'bert-base-uncased'
-        super().__init__(model_name, dataset, training_args, lora_config, pruning_method, device)
+        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir)
         
     def get_target_modules(self):
-        return ['query', 'key', 'value', 'intermediate.dense']
+        target_modules = [
+            # Self-Attention Modules
+            "query",
+            "key",
+            "value",
+            "attention.output.dense",
+
+            # Feed-Forward Modules
+            "intermediate.dense",
+            "output.dense"
+        ]
+        return target_modules
 
 
 class DistilBertFineTuneEvaluator(FineTuneEvaluator):
-    def __init__(self, dataset, training_args, lora_config, pruning_method, device, num_samples): #TODO: make num_samples an optional parameter
+    def __init__(self,
+                 dataset,
+                 training_args,
+                 max_length,
+                 lora_config,
+                 pruning_method,
+                 sparsity_target,
+                 alpha,
+                 temp,
+                 device,
+                 #num_samples,
+                 save_dir):
         model_name = 'distilbert-base-uncased'
-        super().__init__(model_name, dataset, training_args, lora_config, pruning_method, device, num_samples)
+        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, 
+                         #num_samples, 
+                         save_dir)
         
     def get_target_modules(self):
         return ['q_lin', 'k_lin', 'v_lin', 'lin1', 'lin2']
