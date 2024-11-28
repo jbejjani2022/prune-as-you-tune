@@ -2,14 +2,14 @@
 
 import matplotlib.pyplot as plt
 import pandas as pd
-   
-data_dir = 'experiments/bert-yelp-review-full/5epochs-25pct-sparsity'
+
+data_dir = 'bert-imdb-r32-nomaxlen/80pct-sparsity-16epochs'
 
 # csv files of interest, in `data_dir`
-files = ['full_finetune.csv', 'lora_finetune.csv', 'lora_prune_finetune.csv', 'lora_prune_kd_finetune.csv']
+files = ['full_finetune.csv', 'lora_finetune.csv', 'prune_full_finetune.csv', 'prune_lora_finetune.csv', 'lora_prune_interleave.csv', 'lora_prune_kd_interleave.csv']
 
 datasets = [pd.read_csv(f'{data_dir}/{f}') for f in files]
-labels = ['full fine-tuning', 'rsLoRA fine-tuning', 'rsLoRA fine-tuning, 5% pruning / epoch', 'rsLoRA fine-tuning, 5% pruning / epoch, KD loss']
+labels = ['full fine-tune', 'rsLoRA', '80% prune, full fine-tune', '80% prune, rsLoRA', 'rsLoRA / 5% pruning per epoch', 'rsLoRA / 5% pruning per epoch, KD loss']
 
 # Create figure and subplots
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
@@ -23,16 +23,16 @@ for i, df in enumerate(datasets):
 ax1.set_title('Evaluation Accuracy')
 ax1.set_xlabel('Epoch')
 ax1.set_ylabel('Evaluation Accuracy')
+ax1.legend(title="Methods", loc='lower left')
 ax1.set_xticks(datasets[0]['epoch'])
 
 ax2.set_title('Evaluation Loss')
 ax2.set_xlabel('Epoch')
 ax2.set_ylabel('Evaluation Loss')
-ax2.legend(title="Methods", loc='upper left')
 ax2.set_xticks(datasets[0]['epoch'])
 
 # Set the overall title
-fig.suptitle('bert-base-uncased (110M) fine-tuning on yelp_review_full')
+fig.suptitle('bert-base-uncased (110M) fine-tuning on IMDb (r=32)')
 
 # Save the plot
 plt.tight_layout()
