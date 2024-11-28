@@ -110,13 +110,8 @@ class FineTuneEvaluator(ABC):
         
         return KDTrainer(
             teacher_model=teacher,
-<<<<<<< HEAD
             alpha=alpha,
             temp=temp,
-=======
-            alpha=self.alpha,
-            temp=self.temp,
->>>>>>> main
             lambda_lora=0,
             model=student,
             args=self.training_args,
@@ -136,7 +131,6 @@ class FineTuneEvaluator(ABC):
         return PruningCallback(model, method=self.pruning_method, lora=lora, sparsity_target=self.sparsity_target, num_epochs=self.num_epochs)
     
     # Evaluates four fine-tuning methods on the model
-<<<<<<< HEAD
     def evaluate(self, i=15, **kwargs):
         if (i & 1):
             print('\n********* FULL FINETUNING *********\n')
@@ -144,22 +138,12 @@ class FineTuneEvaluator(ABC):
         if (i & 2):
             print('\n********* LORA FINETUNING *********\n')
             self.lora_finetune(rslora = True)
-        if (i & 4):
+        """if (i & 4):
             print('\n********* LORA PRUNE FINETUNING *********\n')
             self.lora_prune_finetune(rslora = True)
         if (i & 8):
             print('\n********* LORA PRUNE KD FINETUNING *********\n')
-            self.lora_prune_kd_finetune(True, **kwargs)
-=======
-    def evaluate(self):
-        self.full_finetune()
-        self.lora_finetune()
-        self.prune_full_finetune()
-        self.prune_lora_finetune()
-        self.lora_prune_interleave()
-        self.lora_prune_kd_interleave()
-        # self.lora_prune_kd_interleave_not_rs()
->>>>>>> main
+            self.lora_prune_kd_finetune(True, **kwargs)"""
     
     # Fine-tunes all model weights
     def full_finetune(self):
@@ -195,30 +179,18 @@ class FineTuneEvaluator(ABC):
         pruner.remove()
     
     # Same as lora_prune_finetune but fine-tunes using KD loss via frozen teacher model
-<<<<<<< HEAD
-    def lora_prune_kd_finetune(self, rslora, **kwargs):
-=======
-    def lora_prune_kd_interleave(self):
+    def lora_prune_kd_interleave(self, **kwargs):
         print('\n********* LORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
->>>>>>> main
         model = copy.deepcopy(self.model)
         frozen_model = copy.deepcopy(model)
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
-<<<<<<< HEAD
         pruner = self.get_pruner(model, ptg=0.05)
 
         a = kwargs.get('alpha', 0)
-        b = kwargs.get('temp', 0)
-        logger = self.get_logger(f'lora_prune_kd_finetune_{a}_{b}.csv', 'checkpoints/lore_prune_kd_finetune')
+        b = kwargs.get('temp', 0)        
+        logger = self.get_logger(f'lora_prune_kd_interleave_{a}_{b}.csv', 'checkpoints/lore_prune_kd_interleave')
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger, alpha=a, temp=b)
-=======
-        pruner = self.get_pruner(model, lora=True)
-        pruner.prune_pretrained(epoch=0)
-        
-        logger = self.get_logger('lora_prune_kd_interleave.csv', 'checkpoints/lore_prune_kd_interleave')
-        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
->>>>>>> main
         trainer.train()
         pruner.remove()
 

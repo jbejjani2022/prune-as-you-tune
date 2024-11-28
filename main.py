@@ -20,25 +20,14 @@ save_dir = 'bert-imdb-r32-nomaxlen/80pct-sparsity-16epochs'
 
 training_args = TrainingArguments(
     output_dir=output_dir,
-<<<<<<< HEAD
-    num_train_epochs=16,
-    eval_strategy="epoch",      # Evaluate every epoch
-    logging_strategy="epoch",   # Log after each epoch
-    save_strategy="no",
-    label_names=["labels"],
-    #fp16=True,                  # Mixed precision training
-    per_device_train_batch_size = 32,
-    per_device_eval_batch_size = 32
-=======
     num_train_epochs=num_epochs,
     eval_strategy="epoch",      # Evaluate every epoch
     logging_strategy="epoch",   # Log after each epoch
     save_strategy="no",
-    fp16=True,                  # Mixed precision training
+    #fp16=True,                  # Mixed precision training #TODO: swati's mac
     per_device_train_batch_size = 64,
     per_device_eval_batch_size = 64,
     dataloader_num_workers=4
->>>>>>> main
 )
 
 print(f'dataset: {dataset}')
