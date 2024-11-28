@@ -25,12 +25,10 @@ class FineTuneEvaluator(ABC):
                  training_args : TrainingArguments,
                  max_length : int,  # sets max token length per training sample - useful for reducing train time
                  lora_config : LoraConfig,
-                 pruning_method : str,
-                 sparsity_target : float,
-                 alpha : float,
-                 temp : int,
                  device,
-                 save_dir : str):
+                 save_dir : str,
+                 pruner : dict,
+                 loss : dict):
         
         # load tokenizer
         self.max_length = max_length
@@ -54,10 +52,6 @@ class FineTuneEvaluator(ABC):
         self.num_epochs = self.training_args.num_train_epochs
         self.lora_config = lora_config
         self.lora_config.target_modules = self.get_target_modules()
-        self.pruning_method = pruning_method
-        self.sparsity_target = sparsity_target
-        self.alpha = alpha
-        self.temp = temp
         
         self.save_dir = save_dir
         
@@ -82,6 +76,7 @@ class FineTuneEvaluator(ABC):
         return self.metric.compute(predictions=predictions, references=labels)
     
     # Returns a HF Trainer using `training_args` and callbacks, if any
+
     def get_trainer(self, model, logger_callback=None, pruning_callback=None):
         callbacks = []
         if logger_callback:
@@ -109,10 +104,10 @@ class FineTuneEvaluator(ABC):
         
         return KDTrainer(
             teacher_model=teacher,
-            alpha=self.alpha,
-            temp=self.temp,
-            lambda_lora=0,
             model=student,
+            alpha=self.loss['alpha'],
+            temp = self.loss['temp'],
+            lambda_lora=self.loss['lambda_lora'],
             args=self.training_args,
             train_dataset=self.train_dataset,
             eval_dataset=self.eval_dataset,
@@ -125,9 +120,12 @@ class FineTuneEvaluator(ABC):
     def get_logger(self, log_file, checkpoint_dir):
         return LoggerCallback(f'{self.save_dir}/{log_file}', f'{self.save_dir}/{checkpoint_dir}')
 
+
+    # TODO : use `prune` to generate
+    
     # Returns a callback that prunes the pretrained weights of `model` by `ptg`% after each epoch
-    def get_pruner(self, model, lora):
-        return PruningCallback(model, method=self.pruning_method, lora=lora, sparsity_target=self.sparsity_target, num_epochs=self.num_epochs)
+    def get_pruner(self, model):
+        return PruningCallback(model, **self.pruner)
     
     # Evaluates four fine-tuning methods on the model
     def full_eval_run(self):

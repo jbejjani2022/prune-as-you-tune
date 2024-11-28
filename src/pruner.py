@@ -11,13 +11,19 @@ import torch.nn as nn
 
 class PruningCallback(TrainerCallback):
     
-    def __init__(self, model, method, lora, sparsity_target, num_epochs):
+    def __init__(self, 
+                 model, 
+                 method, 
+                 lora, 
+                 sparsity_target, 
+                 num_epochs, 
+                 schedule):
         self.model = model
         self.num_epochs = num_epochs
         self.sparsity_target = sparsity_target
         # for the interleaving methods: how much to prune the pretrained weights before each epoch
         # more specifically, this is the ptg by which sparsity of pruning-eligible params will increase before each epoch
-        self.ptg = self.sparsity_target / self.num_epochs
+        self.schedule : int = schedule
         self.lora = lora  # whether the model is being fine-tuned with lora
         
         # pruning method
