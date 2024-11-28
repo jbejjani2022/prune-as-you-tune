@@ -13,13 +13,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # how sparse the pruned models should be after all training epochs
 # for interleaving methods:
 # pruning percentage per epoch = sparsity_target / num_train_epochs
-sparsity_target = 0.50
+sparsity_target = 0.80
+num_epochs = 16
 
-save_dir = 'bert-imdb-r32-nomaxlen/50pct-sparsity-5epochs'
+save_dir = 'bert-imdb-r32-nomaxlen/80pct-sparsity-16epochs'
 
 training_args = TrainingArguments(
     output_dir=output_dir,
-    num_train_epochs=5,
+    num_train_epochs=num_epochs,
     eval_strategy="epoch",      # Evaluate every epoch
     logging_strategy="epoch",   # Log after each epoch
     save_strategy="no",
@@ -29,7 +30,9 @@ training_args = TrainingArguments(
     dataloader_num_workers=4
 )
 
-print(dataset)
+print(f'dataset: {dataset}')
+print(f'sparsity target: {sparsity_target}')
+print(f'num train epochs: {num_epochs}')
 print(training_args.device)
 
 lora_config = LoraConfig(
