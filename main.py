@@ -13,12 +13,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 training_args = TrainingArguments(
     output_dir=output_dir,
-    num_train_epochs=8,
+    num_train_epochs=16,
     eval_strategy="epoch",      # Evaluate every epoch
     logging_strategy="epoch",   # Log after each epoch
     save_strategy="no",
     label_names=["labels"],
-    fp16=True,                  # Mixed precision training
+    #fp16=True,                  # Mixed precision training
     per_device_train_batch_size = 32,
     per_device_eval_batch_size = 32
 )
@@ -38,7 +38,8 @@ evaluator = DistilBertFineTuneEvaluator(
     training_args=training_args,
     lora_config=lora_config,
     pruning_method=pruning_method,
-    device=device
+    device=device,
+    num_samples=250
 )
 #evaluator.evaluate()
-evaluator.evaluate(8, alpha=0.8, temp=2)
+evaluator.evaluate(8, alpha=0.8, temp=1)

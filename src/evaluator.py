@@ -23,15 +23,16 @@ class FineTuneEvaluator(ABC):
                  dataset, training_args : TrainingArguments,
                  lora_config : LoraConfig,
                  pruning_method : str,
-                 device):
+                 device,
+                 n_samples=250):
         
         # load tokenizer
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         # load and tokenize the dataset
         self.dataset = load_dataset(dataset).map(self.tokenize, batched=True)
-        self.train_dataset = self.dataset["train"].shuffle(seed=42)
-        self.eval_dataset = self.dataset["test"].shuffle(seed=42)
+        self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(n_samples))
+        self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(n_samples))
         print(f'{self.train_dataset.num_rows} training samples')
         print(f'{self.eval_dataset.num_rows} evaluation samples')
         self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)

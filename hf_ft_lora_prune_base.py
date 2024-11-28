@@ -98,7 +98,7 @@ class PruningCallback(TrainerCallback):
             prune.remove(module, name)
 
 
-def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 10,
+def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 100, #10,
           num_labels : Annotated[Optional[int], typer.Option(help="Number of labels for classification")] = 5,):
     dataset = load_dataset(dataset_path)
     tokenized_datasets = dataset.map(tokenize_function, batched=True)

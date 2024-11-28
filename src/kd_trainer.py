@@ -22,6 +22,7 @@ class KDTrainer(Trainer):
         labels = inputs.get("labels")
         # cross-entropy loss
         std_loss = self.loss_fct(logits, labels)
+        
         # L2 regularization
         lora_params = [param for name, param in model.named_parameters() if "lora" in name]
         lora_l2 = sum(torch.sum(param ** 2) for param in lora_params)
