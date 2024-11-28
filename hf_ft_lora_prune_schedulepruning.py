@@ -13,10 +13,12 @@ import torch.nn as nn
 import typer
 from typing import List, Optional
 from typing_extensions import Annotated
+import pickle as dill
+import os
 
 
 model_name = "distilbert-base-uncased" # "google-bert/bert-base-cased"
-dataset_path = "yelp_review_full"
+dataset_path = "stanfordnlp/imdb" # "yelp_review_full"
 output_dir = "test_lora_prune_trainer"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
@@ -34,15 +36,16 @@ def compute_metrics(eval_preds):
 
 
 class PruningCallback(TrainerCallback):
-    # AD 2024-11-17: added `prune_every_epoch` parameter to vary pruning frequency
+    # AG 2024-11-17: added `prune_every_epoch` parameter to vary pruning frequency
     # AG 2024-11-17: removed defaults for intializing PruningCallback so we can just define the defaults in the main function
-    def __init__(self, model, ptg, prune_every_epoch, prune_first):
+    def __init__(self, model, ptg, prune_every_epoch, prune_first, filename):
         self.model = model
         self.ptg = ptg  # percentage of params to prune
         self.prune_every_epoch = prune_every_epoch
         self.prune_first = prune_first
         self.method = prune.L1Unstructured  # pruning method
         self.params = []  # params to prune, list of tuples: (module, param_name)
+        self.filename = filename
 
         # Iterate through all modules in the model
         # and get the frozen / non-LoRA parameters to be pruned
@@ -65,7 +68,7 @@ class PruningCallback(TrainerCallback):
             self.total_params += param.numel()
    
     # Reports sparsity of frozen / pretrained weights, as well as overall model sparsity
-    def _report_sparsity(self):
+    def _report_sparsity(self, print_results=True):
         zero_params = 0
         
         # Iterate over all parameters in the model
@@ -76,17 +79,18 @@ class PruningCallback(TrainerCallback):
         sparsity_frozen = (zero_params / (self.total_params - self.lora_params)) * 100 if self.total_params > 0 else 0
         sparsity_all = (zero_params / self.total_params) * 100 if self.total_params > 0 else 0
 
-        print(f"Pretrained Weight Sparsity: {sparsity_frozen:.2f}%")
-        print(f"Overall Model Sparsity (including LoRA): {sparsity_all:.2f}%")
+        if print_results:
+            print(f"Pretrained Weight Sparsity: {sparsity_frozen:.2f}%")
+            print(f"Overall Model Sparsity (including LoRA): {sparsity_all:.2f}%")
         return sparsity_frozen, sparsity_all
         
 
     # Internal pruning fn
     # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
     # Retains previous mask, allowing cumulative pruning
-    def _prune(self, args, state, control, **kwargs):
+    def _prune(self, args, state, control, before_or_after, **kwargs):
         if state.epoch % self.prune_every_epoch == 0:
-            print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights before epoch {state.epoch}")
+            print(f"\nPruning {self.ptg * 100:.2f}% of pretrained weights {before_or_after} epoch {state.epoch}")
             prune.global_unstructured(
                 self.params,
                 pruning_method=self.method,
@@ -97,12 +101,22 @@ class PruningCallback(TrainerCallback):
     # Function called at the start of each training epoch
     def on_epoch_start(self, args, state, control, **kwargs):
         if self.prune_first:
-            self._prune(args, state, control, **kwargs)
+            print("SHOULD PRUNE")
+            self._prune(args, state, control, "before", **kwargs)
     
     # Function called at the start of each training epoch
     def on_epoch_end(self, args, state, control, **kwargs):
-        if self.prune_first:
-            self._prune(args, state, control, **kwargs)
+        if not self.prune_first:
+            self._prune(args, state, control, "after", **kwargs)
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if logs:
+            sparsity_frozen, sparsity_all = self._report_sparsity(print_results=False)  
+            print(f"Epoch {state.epoch} - Frozen weight sparsity: {sparsity_frozen}\n")
+            print(f"Epoch {state.epoch} - All weight sparsity: {sparsity_all}\n")
+            with open(self.filename, "a") as f:
+                f.write(f"Epoch {state.epoch} - Frozen weight sparsity: {sparsity_frozen}\n")
+                f.write(f"Epoch {state.epoch} - All weight sparsity: {sparsity_all}\n")
     
     # Removes the pruning reparameterization to make pruning permanent
     # Necessary in order to consolidate pruning changes permanently or export the model
@@ -136,14 +150,14 @@ class AutomatedGradualPruningCallback(PruningCallback):
 
 def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 10,
           num_labels : Annotated[Optional[int], typer.Option(help="Number of labels for classification")] = 5,
-          ptg : Annotated[Optional[float], typer.Option(help="Percentage of parameters to prune per pruning call")] = 0.1,
+          ptg : Annotated[Optional[float], typer.Option(help="Percentage of parameters to prune per pruning call")] = 0.05,
           prune_every_epoch : Annotated[Optional[int], typer.Option(help="Number of epochs to wait for before pruning")] = 1,
-          prune_first : Annotated[Optional[bool], typer.Option(help="Prune before finetuning")] = False):
+          prune_first : Annotated[Optional[bool], typer.Option(help="Prune before finetuning")] = False,
+          n_train_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 3):
     dataset = load_dataset(dataset_path)
     tokenized_datasets = dataset.map(tokenize_function, batched=True)
     small_train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(n_samples))
     small_eval_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(n_samples))
-
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
 
     # A LoRA adapter will be attached to each target module
@@ -176,20 +190,25 @@ def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samp
     # Apply PEFT with LoRA
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
-    
+
+    logdirname = f"logs/{model_name.replace('/','_')}_{dataset_path.replace('/','_')}_n{n_samples}_e{n_train_epochs}_l{num_labels}_ptg{ptg}_pe{prune_every_epoch}_pf{prune_first}"
+
+    os.makedirs(logdirname, exist_ok=True)
+
     # Training arguments
     training_args = TrainingArguments(
         output_dir=output_dir,
         eval_strategy="epoch",      # Evaluate every epoch
         logging_strategy="epoch",   # Log after each epoch
-        logging_dir="logs/",       # Directory for logs - AG 2024-11-16 changed
+        logging_dir=logdirname,       # Directory for logs - AG 2024-11-16 changed
         save_strategy="epoch",    # Save checkpoint every epoch
         label_names=["labels"],
         report_to="tensorboard",    # Enable TensorBoard logging
+        num_train_epochs=n_train_epochs,
     )
     
     # Create callback
-    pruning_callback = PruningCallback(model, ptg=ptg, prune_every_epoch=prune_every_epoch, prune_first=prune_first)
+    pruning_callback = PruningCallback(model, ptg=ptg, prune_every_epoch=prune_every_epoch, prune_first=prune_first, filename=f"{logdirname}/pruning.log")
 
     trainer = Trainer(
         model=model,
@@ -203,8 +222,11 @@ def main (n_samples : Annotated[Optional[int], typer.Option(help="Number of samp
     
     trainer.train()
 
+    # TODO fix for prune_first
     # Permanently consolidate pruning masks
     pruning_callback.remove()
+
+    
 
 if __name__ == "__main__":
     typer.run(main)
