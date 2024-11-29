@@ -13,10 +13,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # how sparse the pruned models should be after all training epochs
 # for interleaving methods:
 # pruning percentage per epoch = sparsity_target / num_train_epochs
-sparsity_target = 0.80
-num_epochs = 16
+sparsity_target = 0.50
+num_epochs = 5
 
-save_dir = 'bert-imdb-r32-nomaxlen/80pct-sparsity-16epochs'
+save_dir = 'ppl_tests/50pct-sparsity-5epochs-before-remove'
 
 training_args = TrainingArguments(
     output_dir=output_dir,
@@ -27,7 +27,7 @@ training_args = TrainingArguments(
     fp16=True,                  # Mixed precision training
     per_device_train_batch_size = 64,
     per_device_eval_batch_size = 64,
-    dataloader_num_workers=4
+    dataloader_num_workers=1
 )
 
 print(f'dataset: {dataset}')
@@ -53,12 +53,11 @@ evaluator = BertBaseFineTuneEvaluator(
     alpha=0.8,
     temp=2,
     device=device,
-    save_dir=save_dir
+    save_dir=save_dir,
+    eval_ppl=True  # evaluate perplexity on orig task after each finetuning
 )
 
-evaluator.evaluate()
-
-# prune_full_finetune()
-# prune_lora_finetune()
-# lora_prune_interleave()
-# lora_prune_kd_interleave()
+evaluator.prune_lora_finetune()
+evaluator.prune_full_finetune()
+# evaluator.lora_prune_interleave()
+# evaluator.lora_prune_kd_interleave()

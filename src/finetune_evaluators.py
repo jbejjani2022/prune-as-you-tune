@@ -17,9 +17,10 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
                  alpha,
                  temp,
                  device,
-                 save_dir):
+                 save_dir,
+                 eval_ppl):
         model_name = 'bert-base-uncased'
-        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir)
+        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir, eval_ppl)
         
     def get_target_modules(self):
         target_modules = [
@@ -47,9 +48,10 @@ class DistilBertFineTuneEvaluator(FineTuneEvaluator):
                  alpha,
                  temp,
                  device,
-                 save_dir):
+                 save_dir,
+                 eval_ppl):
         model_name = 'distilbert-base-uncased'
-        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir)
+        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir, eval_ppl)
         
     def get_target_modules(self):
         return ['q_lin', 'k_lin', 'v_lin', 'lin1', 'lin2']
