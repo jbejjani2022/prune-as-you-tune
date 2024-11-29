@@ -10,6 +10,7 @@ import torch
 import evaluate
 import numpy as np
 from datasets import load_dataset
+from peft import PeftModel
 
 from src.perplexity import PPL
 
@@ -29,10 +30,11 @@ eval_dataset = dataset["test"].shuffle(seed=42)
 
 
 root = 'bert-imdb-r32-nomaxlen/'
-paths = ['50pct-sparsity-5epochs/checkpoints/full_finetune/ckpt-epoch-5',
-        '50pct-sparsity-10epochs/checkpoints/full_finetune/ckpt-epoch-10',
-        '80pct-sparsity-8epochs/checkpoints/full_finetune/ckpt-epoch-8',
-        '80pct-sparsity-16epochs/checkpoints/full_finetune/ckpt-epoch-2']
+# paths = ['50pct-sparsity-5epochs/checkpoints/full_finetune/ckpt-epoch-5',
+#         '50pct-sparsity-10epochs/checkpoints/full_finetune/ckpt-epoch-10',
+#         '80pct-sparsity-8epochs/checkpoints/full_finetune/ckpt-epoch-8',
+#         '80pct-sparsity-16epochs/checkpoints/full_finetune/ckpt-epoch-2']
+paths = ['50pct-sparsity-5epochs/checkpoints/full_finetune/ckpt-epoch-5']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 evaluator = PPL(model_name, device)
@@ -67,7 +69,12 @@ def eval_acc(model):
 
 def eval_ppl(path, model_name, evaluator, device):
     print(f'loading in {path}...')
+    # base = AutoModelForSequenceClassification.from_pretrained('bert-base-uncased')
+    # finetuned_seq_model = PeftModel.from_pretrained(base, path)
     finetuned_seq_model = AutoModelForSequenceClassification.from_pretrained(path).to(device)
+    if isinstance(finetuned_seq_model, PeftModel):
+        print('merging lora adapters into bert...')
+        finetuned_seq_model.merge_and_unload()
     print(f'evaluating model acc on test set...')
     eval_acc(finetuned_seq_model)
     
@@ -78,7 +85,7 @@ def eval_ppl(path, model_name, evaluator, device):
     masked_lm_model.bert = base_model
     
     print(f'calculating perplexity...')
-    ppl = evaluator.calculate_perplexity(masked_lm_model)
+    ppl = evaluator.calculate_perplexity_pseudo(masked_lm_model)
     print(f'perplexity = {ppl}')
     
     
