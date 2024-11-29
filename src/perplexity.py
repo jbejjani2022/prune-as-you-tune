@@ -9,6 +9,7 @@ class PPL:
     
     def __init__(self, model_name, device):
         self.device = device
+        self.model_name = model_name
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.mask_token_id = tokenizer.mask_token_id
         # load in "wikitext" test set for evaluating masked LM task
@@ -17,7 +18,7 @@ class PPL:
         # join test set into one long sequence, and encode
         self.encodings = tokenizer("\n\n".join(test_dataset["text"]), return_tensors="pt")
 
-    def is_peft_model(model):
+    def is_peft_model(self, model):
         """
         Checks if the given model is a PEFT model with LoRA adapters.
         
@@ -31,14 +32,14 @@ class PPL:
         return isinstance(model, PeftModel)
 
     # evaluates pseudo perplexity of a model finetuned for sequence classification
-    # if `path` is provided, loads in model from saved checkpoint
-    # otherwise, loaded model must be passed as `model` arg
-    # model provided as arg must be a SequenceClassification model
+    # if `path` is provided, loads in model from saved checkpoint. otherwise, a loaded model must be passed as `model` arg
+    # model must be for SequenceClassification
+    # `path` currently only works as expected if it points to a non-pruned model checkpoint (from_pretrained(path) does not properly load in the weight_mask module buffers from pruning)
     def eval(self, path=None, model=None):
         if path:
             # load in finetuned model from a checkpoint
             print(f'loading model from {path}...')
-            finetuned_seq_model = AutoModelForSequenceClassification.from_pretrained(path).to(device)
+            finetuned_seq_model = AutoModelForSequenceClassification.from_pretrained(path).to(self.device)
         elif model:
             finetuned_seq_model = model
         else:
@@ -46,13 +47,14 @@ class PPL:
 
         # if the model was finetuned with LoRA, merge the adapters into the bert backbone
         if self.is_peft_model(finetuned_seq_model):
+            print('merging lora adapters into bert...')
             finetuned_seq_model = finetuned_seq_model.merge_and_unload()
 
         # extract bert parameters from the finetuned seq classifier
         base_model = finetuned_seq_model.bert
         
         # copy over finetuned seq model parameters to a masked LM architecture
-        masked_lm_model = AutoModelForMaskedLM.from_pretrained(model_name, config=base_model.config).to(device)
+        masked_lm_model = AutoModelForMaskedLM.from_pretrained(self.model_name, config=base_model.config).to(self.device)
         masked_lm_model.bert = base_model
         
         # calculate pseudo perplexity of masked LM
@@ -73,6 +75,30 @@ class PPL:
         with torch.inference_mode():
             output = model(masked_input, labels=labels)
         return output.loss
+    
+    # same as `score` but computes loss via two batches of half the size
+    # useful if running out of CUDA memory
+    def score_save_mem(self, model, input):
+        repeat_input = input.repeat(input.size(-1)-2, 1)
+        mask = torch.ones(input.size(-1) - 1).diag(1)[:-2].to(self.device)
+        masked_input = repeat_input.masked_fill(mask == 1, self.mask_token_id)
+        labels = repeat_input.masked_fill(masked_input != self.mask_token_id, -100)
+        
+        # Split the inputs into two halves
+        split_size = masked_input.size(0) // 2
+        masked_input_1, masked_input_2 = torch.split(masked_input, [split_size, masked_input.size(0) - split_size])
+        labels_1, labels_2 = torch.split(labels, [split_size, labels.size(0) - split_size])
+        
+        with torch.inference_mode():
+            # First forward pass
+            output1 = model(masked_input_1, labels=labels_1)
+            # Second forward pass
+            output2 = model(masked_input_2, labels=labels_2)
+        
+        # Combine the losses
+        combined_loss = (output1.loss * masked_input_1.size(0) + output2.loss * masked_input_2.size(0)) / masked_input.size(0)
+        
+        return combined_loss
 
     # calculates pseudo perplexity over test dataset
     # sweeps over test dataset in steps of size `stride`; adjust to balance accuracy of estimation with efficiency
@@ -138,10 +164,10 @@ if __name__ == "__main__":
     model_name = 'bert-base-uncased'
     
     # Get perplexity of base, non-finetuned bert model
-    model = AutoModelForMaskedLM.from_pretrained(model_name).to(device)
-    evaluator = PPL(model_name, device)
-    ppl = evaluator.calculate_perplexity_pseudo(model)
-    print(f'perplexity = {ppl}')
+    # model = AutoModelForMaskedLM.from_pretrained(model_name).to(device)
+    ppl = PPL(model_name, device)
+    # ppl = evaluator.calculate_perplexity_pseudo(model)
+    # print(f'perplexity = {ppl}')
     
     # Test loading finetuned model checkpoints and evaluating pseudo perplexity for each
     # Each checkpoint is an instance of AutoModelForSequenceClassification.from_pretrained('bert-base-uncased')
@@ -153,6 +179,12 @@ if __name__ == "__main__":
     #         '80pct-sparsity-8epochs/checkpoints/full_finetune/ckpt-epoch-8',
     #         '80pct-sparsity-16epochs/checkpoints/full_finetune/ckpt-epoch-2']
     
-    # for ckpt in paths:
-    #     ppl = evaluator.eval(path = root + ckpt)
-    #     print(f'perplexity = {ppl}')
+    root = 'bert-imdb-r32-nomaxlen/'
+    paths = [#'50pct-sparsity-5epochs/checkpoints/lora_finetune/ckpt-epoch-5',
+            '50pct-sparsity-10epochs/checkpoints/lora_finetune/ckpt-epoch-10',
+            '80pct-sparsity-8epochs/checkpoints/lora_finetune/ckpt-epoch-8',
+            '80pct-sparsity-16epochs/checkpoints/lora_finetune/ckpt-epoch-14']
+    
+    for ckpt in paths:
+        perplexity = ppl.eval(path = root + ckpt)
+        print(f'perplexity = {perplexity}')
