@@ -137,15 +137,30 @@ class FineTuneEvaluator(ABC):
         self.lora_prune_kd_interleave()
         # self.lora_prune_kd_interleave_not_rs()
     
-    def evaluate(self, use_lora=True, use_kd=False):
-        if use_lora and use_kd:
-            self.lora_prune_kd_interleave()
-        elif use_lora:
-            self.lora_prune_interleave()
-        elif use_kd:
-            self.prune_full_finetune()
-        else:
-            self.full_finetune()
+    def evaluate(self, use_lora=True, use_kd=False, prune_interleave=True):
+        logger = self.get_logger('full_finetune.csv', 'checkpoints/full_finetune')
+
+        pruner = None
+        if prune_interleave:
+            pruner = self.get_pruner(model, lora=use_lora)
+
+        model = copy.deepcopy(self.model)
+        if use_kd:
+            frozen_model = copy.deepcopy(model)
+            trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
+
+        if use_lora:
+            model = get_peft_model(frozen_model, self.lora_config)
+        
+        if not use_kd:
+            trainer = self.get_trainer(model, logger_callback=logger, pruning_callback=pruner)
+
+        if pruner is not None:
+            pruner.prune_pretrained(epoch=0)
+        trainer.train()
+
+        if pruner is not None:
+            pruner.remove()
 
     # Fine-tunes all model weights
     def full_finetune(self):

@@ -53,7 +53,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
 
     lora_config = LoraConfig(
         task_type=TaskType.SEQ_CLS,
-        r=32,                # Rank of LoRA
+        r=lora_rank,                # Rank of LoRA
         lora_alpha=lora_alpha,       # Scaling factor
         lora_dropout=lora_dropout,    # Dropout rate
         use_rslora=use_rs_lora      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
@@ -65,7 +65,10 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
                  "num_epochs" : num_epochs, 
                  "schedule" : 0,}
 
-    loss_args = {"alpha": kd_alpha, "temp": kd_temp, "lambda_lora": kd_lambda_lora}
+    loss_args = {"alpha": kd_alpha, 
+                 "temp": kd_temp, 
+                 "lambda_lora": kd_lambda_lora,
+                 "use_kd_loss": use_kd}
 
     evaluator = BertBaseFineTuneEvaluator(
         dataset=dataset,
