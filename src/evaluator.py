@@ -182,7 +182,6 @@ class FineTuneEvaluator(ABC):
         logger = self.get_logger('lora_prune_interleave.csv', 'checkpoints/lora_prune_interleave')
         trainer = self.get_trainer(model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
-        
         pruner.remove()
         
         if self.eval_ppl:
@@ -201,7 +200,6 @@ class FineTuneEvaluator(ABC):
         logger = self.get_logger('lora_prune_kd_interleave.csv', 'checkpoints/lore_prune_kd_interleave')
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
-        
         pruner.remove()
         
         if self.eval_ppl:
@@ -239,10 +237,10 @@ class FineTuneEvaluator(ABC):
         logger = self.get_logger('prune_full_finetune.csv', 'checkpoints/prune_full_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
+        pruner.remove()
         
         if self.eval_ppl:
             self.report_perplexity(model)
-        pruner.remove()
     
     # Prunes model once then fine-tunes LoRA adapters
     def prune_lora_finetune(self):
@@ -260,10 +258,10 @@ class FineTuneEvaluator(ABC):
         logger = self.get_logger('prune_lora_finetune.csv', 'checkpoints/prune_lora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
+        pruner.remove()
         
         if self.eval_ppl:
             self.report_perplexity(model)
-        pruner.remove()
 
     def report_perplexity(self, model):
         perplexity = self.ppl.eval(model=model)
