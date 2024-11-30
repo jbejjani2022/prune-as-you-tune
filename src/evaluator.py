@@ -282,7 +282,6 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         pruner.remove()
-<<<<<<< HEAD
     
     # Prunes model once then fine-tunes LoRA adapters
     def prune_lora_finetune_not_rs(self):
@@ -303,8 +302,6 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         pruner.remove()
-
-=======
         
         if self.eval_ppl:
             self.report_perplexity(model)
@@ -312,4 +309,3 @@ class FineTuneEvaluator(ABC):
     def report_perplexity(self, model):
         perplexity = self.ppl.eval(model=model)
         print(f'perplexity = {perplexity}')
->>>>>>> origin/main

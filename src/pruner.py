@@ -17,15 +17,14 @@ class PruningCallback(TrainerCallback):
                  lora, 
                  sparsity_target, 
                  num_epochs, 
-                 schedule):
+                 schedule : str,
+                 prune_every_epoch : int = 1):
         self.model = model
         self.num_epochs = num_epochs
         self.sparsity_target = sparsity_target
         # for the interleaving methods: how much to prune the pretrained weights before each epoch
         # more specifically, this is the ptg by which sparsity of pruning-eligible params will increase before each epoch
-        self.schedule : int = schedule
         self.lora = lora  # whether the model is being fine-tuned with lora
-        
         # pruning method
         if method == "L1Unstructured":
             self.method = prune.L1Unstructured
@@ -33,6 +32,22 @@ class PruningCallback(TrainerCallback):
         else:
             raise ValueError(f"Unsupported pruning method: {method}")
         
+        if schedule == "linear":
+            # Linear schedule: prune a fixed percentage of remaining weights at each epoch
+            self.schedule = [(sparsity_target/((num_epochs)/prune_every_epoch)) * (i % prune_every_epoch == 0) for i in range(num_epochs-1)]
+        elif schedule == "agp":
+            
+            pruning_steps = (num_epochs-1) // prune_every_epoch
+            self.schedule = 
+            [(sparsity_target - sparsity_target * (1 - i / (pruning_steps * prune_every_epoch)) ** 3) * (i % prune_every_epoch == 0)   for i in range(num_epochs-1)]
+
+        else:
+            raise ValueError(f"Unsupported pruning schedule: {schedule}")
+        
+        assert(sum(self.schedule)==sparsity_target)
+    
+        self.schedule.append(0) # don't prune after final epoch
+
         self.params = []  # params to prune, list of tuples: (module, param_name)
 
         # Iterate through all modules in the model
@@ -70,22 +85,14 @@ class PruningCallback(TrainerCallback):
         if state.epoch == self.num_epochs:
             # Don't prune after final epoch
             return
-        current_sparsity = (state.epoch) * self.ptg   # current sparsity of the pruning-eligible params
-        epoch_ptg = self.ptg / (1 - current_sparsity)     # how much to prune the remaining pruning-eligible params in order to increase sparsity by self.ptg
+        epoch_ptg = self.schedule[state.epoch]
         self.prune_pretrained(state.epoch, epoch_ptg)
         self.report_sparsity()
 
     # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
     # Retains previous mask, allowing cumulative pruning
     def prune_pretrained(self, epoch, epoch_ptg=None):
-        if not epoch_ptg:
-            assert(epoch == 0)
-            epoch_ptg = self.ptg
-        if epoch == 0:
-            sparsity_increase = epoch_ptg
-        else:
-            sparsity_increase = self.ptg
-        print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights before epoch {epoch + 1}, increasing sparsity of pretrained weights by {sparsity_increase * 100:.2f}%")
+        print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights after epoch {epoch}")
 
         prune.global_unstructured(
             self.params,
