@@ -15,6 +15,7 @@ import numpy as np
 from src.kd_trainer import KDTrainer
 from src.logger import LoggerCallback
 from src.pruner import PruningCallback
+from src.perplexity import PPL
 
 
 class FineTuneEvaluator(ABC):
@@ -28,7 +29,8 @@ class FineTuneEvaluator(ABC):
                  device,
                  save_dir : str,
                  pruner : dict,
-                 loss : dict):
+                 loss : dict,
+                 eval_ppl : bool = True):
         
         # load tokenizer
         self.max_length = max_length
@@ -54,6 +56,10 @@ class FineTuneEvaluator(ABC):
         self.lora_config.target_modules = self.get_target_modules()
         
         self.save_dir = save_dir
+        
+        self.eval_ppl = eval_ppl  # whether to evaluate perplexity on orig task after each finetuning
+        if self.eval_ppl:
+            self.ppl = PPL(model_name, device)
         
         print(self.model.device)
         
@@ -169,6 +175,9 @@ class FineTuneEvaluator(ABC):
         logger = self.get_logger('full_finetune.csv', 'checkpoints/full_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
     
     # Fine-tunes only LoRA adapters
     def lora_finetune(self):
@@ -179,6 +188,9 @@ class FineTuneEvaluator(ABC):
         logger = self.get_logger('lora_finetune.csv', 'checkpoints/lora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
     
     # Interleaves LoRA fine-tuning with pruning of pretrained weights
     def lora_prune_interleave(self):
@@ -194,6 +206,9 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_trainer(model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
     
     # Same as lora_prune_finetune but fine-tunes using KD loss via frozen teacher model
     def lora_prune_kd_interleave(self):
@@ -209,6 +224,9 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
 
     def lora_prune_kd_interleave_not_rs(self):
         print('\n********* (NOT RS) LORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
@@ -224,6 +242,9 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
     
     # Prunes model once then fine-tunes all remaining weights
     def prune_full_finetune(self):
@@ -240,6 +261,9 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
     
     # Prunes model once then fine-tunes LoRA adapters
     def prune_lora_finetune(self):
@@ -258,6 +282,7 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         pruner.remove()
+<<<<<<< HEAD
     
     # Prunes model once then fine-tunes LoRA adapters
     def prune_lora_finetune_not_rs(self):
@@ -279,3 +304,12 @@ class FineTuneEvaluator(ABC):
         trainer.train()
         pruner.remove()
 
+=======
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
+
+    def report_perplexity(self, model):
+        perplexity = self.ppl.eval(model=model)
+        print(f'perplexity = {perplexity}')
+>>>>>>> origin/main
