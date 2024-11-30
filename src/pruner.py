@@ -36,11 +36,10 @@ class PruningCallback(TrainerCallback):
             # Linear schedule: prune a fixed percentage of remaining weights at each epoch
             self.schedule = [(sparsity_target/((num_epochs)/prune_every_epoch)) * (i % prune_every_epoch == 0) for i in range(num_epochs-1)]
         elif schedule == "agp":
-            
-            pruning_steps = (num_epochs-1) // prune_every_epoch
-            self.schedule = 
-            [(sparsity_target - sparsity_target * (1 - i / (pruning_steps * prune_every_epoch)) ** 3) * (i % prune_every_epoch == 0)   for i in range(num_epochs-1)]
-
+            n_pruning_epochs = (num_epochs) // prune_every_epoch
+            cumulative_pruning = [(sparsity_target * (1-(1 - i / n_pruning_epochs) ** 3))  for i in range(n_pruning_epochs)]
+            self.schedule = np.zeros(num_epochs-1)
+            self.schedule[1::prune_every_epoch] =  np.diff(cumulative_pruning) 
         else:
             raise ValueError(f"Unsupported pruning schedule: {schedule}")
         
