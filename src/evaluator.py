@@ -17,6 +17,8 @@ from src.logger import LoggerCallback
 from src.pruner import PruningCallback
 from src.perplexity import PPL
 
+from src.lora_init import CustomLoraConfig, get_peft_model_with_curlora
+
 
 class FineTuneEvaluator(ABC):
     
@@ -262,6 +264,72 @@ class FineTuneEvaluator(ABC):
         
         if self.eval_ppl:
             self.report_perplexity(model)
+
+    #same as prune_lora_finetune, but uses curlora matrix decomposition
+    def prune_curlora_finetune(self):
+        print('\n********* PRUNE THEN CURLoRA FINETUNE *********\n')
+        model = copy.deepcopy(self.model)
+
+        #get model with CustomLora integration
+        model = get_peft_model_with_curlora(model, self.lora_config) #assume CustomLoraConfig passed, not LoraConfig
+        model.print_trainable_parameters()
+        
+        pruner = self.get_pruner(model, lora=True)
+        pruner.report_sparsity()
+        print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
+        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        pruner.report_sparsity()
+        
+        logger = self.get_logger('prune_curlora_finetune.csv', 'checkpoints/prune_curlora_finetune')
+        trainer = self.get_trainer(model, logger_callback=logger)
+        trainer.train()
+        pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
+
+    #same as lora_prune_kd_interleave, but uses curlora matrix decomposition
+    def curlora_prune_kd_interleave(self):
+        print('\n********* CURLORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
+        model = copy.deepcopy(self.model)
+        frozen_model = copy.deepcopy(model)
+
+        #get model with CustomLora integration
+        model = get_peft_model_with_curlora(model, self.lora_config) #assume CustomLoraConfig passed, not LoraConfig
+
+        #init pruner
+        model.print_trainable_parameters()
+        pruner = self.get_pruner(model, lora=True)
+        pruner.prune_pretrained(epoch=0)
+
+        #fine tune model
+        logger = self.get_logger('curlora_prune_kd_interleave.csv', 'checkpoints/curlora_prune_kd_interleave')
+        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
+        trainer.train()
+        pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
+
+    #same as gausslora_prune_kd_interleave, but uses a gaussian (aka normal) prior
+    def gausslora_prune_kd_interleave(self):
+        """print('\n********* GAUSSIAN LORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
+        model = copy.deepcopy(self.model)
+        frozen_model = copy.deepcopy(model)
+        model = get_peft_model(model, self.lora_config)
+        model.print_trainable_parameters()
+        pruner = self.get_pruner(model, lora=True)
+        pruner.prune_pretrained(epoch=0)
+        
+        logger = self.get_logger('lora_prune_kd_interleave.csv', 'checkpoints/lore_prune_kd_interleave')
+        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
+        trainer.train()
+        pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)"""
+        return
+
 
     def report_perplexity(self, model):
         perplexity = self.ppl.eval(model=model)

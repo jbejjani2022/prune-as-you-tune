@@ -2,6 +2,8 @@ from transformers import TrainingArguments
 from peft import LoraConfig, TaskType
 import torch
 
+from src.lora_init import CustomLoraConfig
+
 from src.finetune_evaluators import DistilBertFineTuneEvaluator, BertBaseFineTuneEvaluator
 
 
@@ -43,6 +45,16 @@ lora_config = LoraConfig(
     use_rslora=True      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
 )
 
+custom_lora_config = CustomLoraConfig(
+    task_type=TaskType.SEQ_CLS,
+    r=32,                # Rank of LoRA
+    lora_alpha=32,       # Scaling factor
+    lora_dropout=0.1,     # Dropout rate
+    sampling_method='inverted_probs'
+    #inference_mode=False
+    #target_modules=['attn'],
+)
+
 evaluator = BertBaseFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
@@ -57,7 +69,10 @@ evaluator = BertBaseFineTuneEvaluator(
     eval_ppl=True  # evaluate perplexity on orig task after each finetuning
 )
 
-evaluator.prune_lora_finetune()
-evaluator.prune_full_finetune()
-# evaluator.lora_prune_interleave()
-# evaluator.lora_prune_kd_interleave()
+#evaluator.prune_lora_finetune()
+#evaluator.prune_full_finetune()
+#evaluator.lora_prune_interleave()
+#evaluator.lora_prune_kd_interleave()
+
+evaluator.prune_curlora_finetune()
+evaluator.curlora_prune_kd_interleave()

@@ -62,7 +62,7 @@ class CurloraLayer(nn.Module):
 def get_peft_model_with_curlora(model, peft_config):
     #run customlora, if specified
     if isinstance(peft_config, CustomLoraConfig):
-        #replace linear layers with CurloraLayers. TODO: does replacinga  different layer make more sense?
+        #replace linear layers with CurloraLayers. TODO: does replacing a different layer make more sense?
         for name, module in model.named_modules():
             if isinstance(module, nn.Linear):
                 setattr(model, name, CurloraLayer(module, peft_config))
