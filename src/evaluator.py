@@ -57,6 +57,8 @@ class FineTuneEvaluator(ABC):
         self.training_args = training_args
         self.num_epochs = self.training_args.num_train_epochs
         self.lora_config = lora_config
+        print(f'lora_config.r: {lora_config.r}')
+        print(f'lora_config.sampling_method: {lora_config.sampling_method}')
         self.lora_config.target_modules = self.get_target_modules()
         self.pruning_method = pruning_method
         self.sparsity_target = sparsity_target
@@ -272,7 +274,7 @@ class FineTuneEvaluator(ABC):
 
         #get model with CustomLora integration
         model = get_peft_model_with_curlora(model, self.lora_config) #assume CustomLoraConfig passed, not LoraConfig
-        model.print_trainable_parameters()
+        #model.print_trainable_parameters()
         
         pruner = self.get_pruner(model, lora=True)
         pruner.report_sparsity()
@@ -311,8 +313,8 @@ class FineTuneEvaluator(ABC):
         if self.eval_ppl:
             self.report_perplexity(model)
 
-    #same as gausslora_prune_kd_interleave, but uses a gaussian (aka normal) prior
-    def gausslora_prune_kd_interleave(self):
+    #same as lora_prune_kd_interleave, but uses a svd based decomposition. see: https://github.com/huggingface/peft/blob/main/src/peft/tuners/lora/config.py
+    def svdlora_prune_kd_interleave(self):
         """print('\n********* GAUSSIAN LORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
         model = copy.deepcopy(self.model)
         frozen_model = copy.deepcopy(model)
