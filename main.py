@@ -8,6 +8,8 @@ import os
 
 app = typer.Typer()
 
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.7
+
 @app.command()
 def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
           ptg : Annotated[Optional[float], typer.Option(help="Percentage of parameters to prune per pruning call")] = 0.05,
@@ -24,7 +26,8 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
           use_rs_lora : Annotated[Optional[bool], typer.Option(help="Use rsLoRA adapters for fine-tuning")] = False,
           lora_dropout : Annotated[Optional[float], typer.Option(help="Dropout rate for LoRA adapters")] = 0.1,
           lora_alpha : Annotated[Optional[float], typer.Option(help="Scaling factor for LoRA adapters")] = 32,
-          lora_rank : Annotated[Optional[int], typer.Option(help="Rank of LoRA adapters")] = 32):
+          lora_rank : Annotated[Optional[int], typer.Option(help="Rank of LoRA adapters")] = 32,
+          max_length: Annotated[Optional[int], typer.Option(help="Maximum length of input sequences")] = 512):
     
     pruning_method = "L1Unstructured"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -77,7 +80,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         n_samples=n_samples,
         dataset=dataset,
         training_args=training_args,
-        max_length=None,  # set max_length = None if you don't want to truncate samples
+        max_length=max_length,  # set max_length = None if you don't want to truncate samples
         lora_config=lora_config,
         device=device,
         save_dir=save_dir,
