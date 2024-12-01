@@ -4,20 +4,21 @@ import torch
 import typer
 from typing import Optional, Annotated
 from src.finetune_evaluators import DistilBertFineTuneEvaluator, BertBaseFineTuneEvaluator
+import os
 
 app = typer.Typer()
 
 @app.command()
-def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 10,
+def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
           ptg : Annotated[Optional[float], typer.Option(help="Percentage of parameters to prune per pruning call")] = 0.05,
-          sparsity_target: Annotated[Optional[float], typer.Option(help="Target percentage of parameters to prune")] = 0.8,
+          sparsity_target: Annotated[Optional[float], typer.Option(help="Target percentage of parameters to prune")] = 0.5,
           num_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 3,
           output_dir : Annotated[Optional[str], typer.Option(help="Output directory for logs and model checkpoints")] = "logs",
           dataset : Annotated[Optional[str], typer.Option(help="Dataset to use for fine-tuning")] = "imdb",
-          full_evaluate : Annotated[Optional[bool], typer.Option(help="Evaluate using all variations of pruning methods, as well as full fine-tuning")] = True,
-          use_lora : Annotated[Optional[bool], typer.Option(help="Use LoRA adapters for fine-tuning")] = False,
-          use_kd : Annotated[Optional[bool], typer.Option(help="Use knowledge distillation for fine-tuning")] = False,
-          kd_alpha : Annotated[Optional[float], typer.Option(help="Alpha parameter for knowledge distillation")] = 0.8,
+          full_evaluate : Annotated[Optional[bool], typer.Option(help="Evaluate using all variations of pruning methods, as well as full fine-tuning")] = False,
+          use_lora : Annotated[Optional[bool], typer.Option(help="Use LoRA adapters for fine-tuning")] = True,
+          use_kd : Annotated[Optional[bool], typer.Option(help="Use knowledge distillation for fine-tuning")] = True,
+          kd_alpha : Annotated[Optional[float], typer.Option(help="Alpha parameter for knowledge distillation")] = 0.5,
           kd_temp : Annotated[Optional[float], typer.Option(help="Temperature parameter for knowledge distillation")] = 2,
           kd_lambda_lora : Annotated[Optional[float], typer.Option(help="Lambda parameter for LoRA regularization in knowledge distillation")] = 1e-5,
           use_rs_lora : Annotated[Optional[bool], typer.Option(help="Use rsLoRA adapters for fine-tuning")] = False,
@@ -33,6 +34,8 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     # pruning percentage per epoch = sparsity_target / num_train_epochs
 
     save_dir = 'bert-imdb-r32-nomaxlen/50pct-sparsity-5epochs/prune_sched/'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     training_args = TrainingArguments(
         output_dir=output_dir,
@@ -40,7 +43,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         eval_strategy="epoch",      # Evaluate every epoch
         logging_strategy="epoch",   # Log after each epoch
         save_strategy="no",
-        fp16=True,                  # Mixed precision training
+        fp16=False,                  # Mixed precision training
         per_device_train_batch_size = 64,
         per_device_eval_batch_size = 64,
         dataloader_num_workers=4
@@ -59,8 +62,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         use_rslora=use_rs_lora      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
     )
 
-    pruning_args = {"method" : "L1Unstructured",
-                 "lora" : True,
+    pruning_args = {"method" : pruning_method,
                  "sparsity_target" : sparsity_target, 
                  "num_epochs" : num_epochs, 
                  "schedule" : "linear",
@@ -72,13 +74,14 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
                  "use_kd_loss": use_kd}
 
     evaluator = BertBaseFineTuneEvaluator(
+        n_samples=n_samples,
         dataset=dataset,
         training_args=training_args,
         max_length=None,  # set max_length = None if you don't want to truncate samples
         lora_config=lora_config,
         device=device,
         save_dir=save_dir,
-        pruner = pruning_args,
+        pruning_args = pruning_args,
         loss = loss_args,
         eval_ppl=True
     )

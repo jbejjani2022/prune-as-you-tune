@@ -22,13 +22,14 @@ class FineTuneEvaluator(ABC):
     
     def __init__(self,
                  model_name : str,
+                 n_samples,
                  dataset,
                  training_args : TrainingArguments,
                  max_length : int,  # sets max token length per training sample - useful for reducing train time
                  lora_config : LoraConfig,
                  device,
                  save_dir : str,
-                 pruner : dict,
+                 pruning_args : dict,
                  loss : dict,
                  eval_ppl : bool = True):
         
@@ -38,8 +39,8 @@ class FineTuneEvaluator(ABC):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         # load and tokenize the dataset
         self.dataset = load_dataset(dataset).map(self.tokenize, batched=True)
-        self.train_dataset = self.dataset["train"].shuffle(seed=42)
-        self.eval_dataset = self.dataset["test"].shuffle(seed=42)
+        self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(n_samples))
+        self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(n_samples))
         print(f'{self.train_dataset.num_rows} training samples')
         print(f'{self.eval_dataset.num_rows} evaluation samples')
         self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
@@ -54,9 +55,9 @@ class FineTuneEvaluator(ABC):
         self.num_epochs = self.training_args.num_train_epochs
         self.lora_config = lora_config
         self.lora_config.target_modules = self.get_target_modules()
-        self.pruner = pruner
+        self.pruning_args = pruning_args
         self.loss = loss
-        
+
         self.save_dir = save_dir
         
         self.eval_ppl = eval_ppl  # whether to evaluate perplexity on orig task after each finetuning
@@ -132,8 +133,8 @@ class FineTuneEvaluator(ABC):
     # TODO : use `prune` to generate
     
     # Returns a callback that prunes the pretrained weights of `model` by `ptg`% after each epoch
-    def get_pruner(self, model):
-        return PruningCallback(model, **self.pruner)
+    def get_pruner(self, model, lora):
+        return PruningCallback(model, lora, **self.pruning_args)
     
     # Evaluates four fine-tuning methods on the model
     def full_eval_run(self):
@@ -146,19 +147,24 @@ class FineTuneEvaluator(ABC):
         # self.lora_prune_kd_interleave_not_rs()
     
     def evaluate(self, use_lora=True, use_kd=False, prune_interleave=True):
-        logger = self.get_logger('full_finetune.csv', 'checkpoints/full_finetune')
-
-        pruner = None
-        if prune_interleave:
-            pruner = self.get_pruner(model, lora=use_lora)
-
+        logger = self.get_logger('custom_eval.csv', 'checkpoints/custom_eval')
         model = copy.deepcopy(self.model)
+        frozen_model = None
+        pruner = None
+        print(self.pruning_args)
+        
+        if use_lora:
+            frozen_model = copy.deepcopy(self.model)
+            model = get_peft_model(frozen_model, self.lora_config)
+            
+        if prune_interleave:
+            pruner = self.get_pruner(model=model, lora=use_lora)
+        
         if use_kd:
-            frozen_model = copy.deepcopy(model)
+            if frozen_model is None:
+                frozen_model = copy.deepcopy(self.model)
             trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
 
-        if use_lora:
-            model = get_peft_model(frozen_model, self.lora_config)
         
         if not use_kd:
             trainer = self.get_trainer(model, logger_callback=logger, pruning_callback=pruner)
@@ -200,7 +206,7 @@ class FineTuneEvaluator(ABC):
         model = copy.deepcopy(self.model)
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
-        pruner = self.get_pruner(model, lora=True)
+        pruner = self.get_pruner(model=model, lora=True)
         # pruning step before fine-tuning begins
         pruner.prune_pretrained(epoch=0)
         

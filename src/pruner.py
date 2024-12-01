@@ -12,19 +12,20 @@ import torch.nn as nn
 class PruningCallback(TrainerCallback):
     
     def __init__(self, 
-                 model, 
+                 model,
+                 lora,  
                  method, 
-                 lora, 
                  sparsity_target, 
                  num_epochs, 
                  schedule : str,
-                 prune_every_epoch : int = 1):
+                 prune_every_epoch : int):
         self.model = model
         self.num_epochs = num_epochs
         self.sparsity_target = sparsity_target
         # for the interleaving methods: how much to prune the pretrained weights before each epoch
         # more specifically, this is the ptg by which sparsity of pruning-eligible params will increase before each epoch
         self.lora = lora  # whether the model is being fine-tuned with lora
+        if self.lora: print("Using LoRA")
         # pruning method
         if method == "L1Unstructured":
             self.method = prune.L1Unstructured
@@ -34,16 +35,19 @@ class PruningCallback(TrainerCallback):
         
         if schedule == "linear":
             # Linear schedule: prune a fixed percentage of remaining weights at each epoch
-            self.schedule = [(sparsity_target/((num_epochs)/prune_every_epoch)) * (i % prune_every_epoch == 0) for i in range(num_epochs-1)]
+            self.schedule = [(sparsity_target/(num_epochs/prune_every_epoch)) * (i % prune_every_epoch == 0) for i in range(num_epochs)]
         elif schedule == "agp":
             n_pruning_epochs = (num_epochs) // prune_every_epoch
             cumulative_pruning = [(sparsity_target * (1-(1 - i / n_pruning_epochs) ** 3))  for i in range(n_pruning_epochs)]
-            self.schedule = np.zeros(num_epochs-1)
-            self.schedule[1::prune_every_epoch] =  np.diff(cumulative_pruning) 
+            self.schedule = np.zeros(num_epochs)
+            self.schedule[0::prune_every_epoch] =  np.diff(cumulative_pruning) 
         else:
             raise ValueError(f"Unsupported pruning schedule: {schedule}")
+
+        print(f"Pruning schedule: {self.schedule}")
         
-        assert(sum(self.schedule)==sparsity_target)
+        print(f"Total sparsity will be {sum(self.schedule)}, target was {sparsity_target}")
+        #assert(sum(self.schedule)==sparsity_target)
     
         self.schedule.append(0) # don't prune after final epoch
 
@@ -60,7 +64,11 @@ class PruningCallback(TrainerCallback):
                     if self.lora:
                         # Model is being fine-tuned with lora adapters
                         # Filter for non-trainable, non-LoRA parameters
+                        print(name)
+                        print(module.weight.requires_grad, "req grad")
+                        print("classifier" in name, "classifier")
                         if not module.weight.requires_grad and "classifier" not in name:
+                            print("found module")
                             assert("lora" not in name)
                             self.params.append((module, 'weight'))
                     else:
@@ -74,6 +82,7 @@ class PruningCallback(TrainerCallback):
         print(f'Total params: {self.total_params}')
 
     # Count trainable and total model parameters
+    # TODO
     def _count_parameters(self):
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in self.model.parameters())
@@ -90,8 +99,12 @@ class PruningCallback(TrainerCallback):
 
     # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
     # Retains previous mask, allowing cumulative pruning
+    # TODO
     def prune_pretrained(self, epoch, epoch_ptg=None):
-        print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights after epoch {epoch}")
+        if epoch_ptg is None:
+            epoch_ptg = self.schedule[epoch]
+        
+        print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights before epoch {epoch}")
 
         prune.global_unstructured(
             self.params,
