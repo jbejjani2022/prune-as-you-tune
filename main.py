@@ -16,7 +16,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 sparsity_target = 0.50
 num_epochs = 5
 
-save_dir = 'ppl_tests/50pct-sparsity-5epochs-before-remove'
+save_dir = 'test-temps2-5'
 
 training_args = TrainingArguments(
     output_dir=output_dir,
@@ -51,13 +51,17 @@ evaluator = BertBaseFineTuneEvaluator(
     pruning_method=pruning_method,
     sparsity_target=sparsity_target,
     alpha=0.8,
-    temp=2,
+    temp=2,  # default KD temp
     device=device,
     save_dir=save_dir,
     eval_ppl=True  # evaluate perplexity on orig task after each finetuning
 )
 
-evaluator.prune_lora_finetune()
-evaluator.prune_full_finetune()
-# evaluator.lora_prune_interleave()
-# evaluator.lora_prune_kd_interleave()
+# evaluator.prune_full_finetune()
+# evaluator.prune_lora_finetune()
+evaluator.lora_prune_interleave()
+evaluator.lora_prune_kd_interleave(temp=2)
+evaluator.lora_prune_kd_interleave(temp=3)
+evaluator.lora_prune_kd_interleave(temp=4)
+evaluator.lora_prune_kd_interleave(temp=5)
+# evaluator.prune_no_finetune()
