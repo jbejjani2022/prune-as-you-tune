@@ -46,7 +46,7 @@ lora_config = LoraConfig(
 evaluator = BertBaseFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
-    max_length=None,  # set max_length = None if you don't want to truncate samples
+    max_length=5000,  # set max_length = None if you don't want to truncate samples
     lora_config=lora_config,
     pruning_method=pruning_method,
     sparsity_target=sparsity_target,
@@ -57,7 +57,7 @@ evaluator = BertBaseFineTuneEvaluator(
     eval_ppl=True  # evaluate perplexity on orig task after each finetuning
 )
 
-evaluator.prune_lora_finetune()
-evaluator.prune_full_finetune()
+#evaluator.prune_lora_finetune()
+#evaluator.prune_full_finetune()
 # evaluator.lora_prune_interleave()
-# evaluator.lora_prune_kd_interleave()
+evaluator.lora_prune_kd_interleave()
