@@ -43,7 +43,7 @@ lora_config = LoraConfig(
     use_rslora=True      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
 )
 
-evaluator = BertBaseFineTuneEvaluator(
+evaluator = DistilBertFineTuneEvaluator(#BertBaseFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
     max_length=None,  # set max_length = None if you don't want to truncate samples
@@ -58,7 +58,8 @@ evaluator = BertBaseFineTuneEvaluator(
     num_samples=5000 # set num_samples = None if we want to run with all samples
 )
 
-#evaluator.prune_lora_finetune()
-#evaluator.prune_full_finetune()
-# evaluator.lora_prune_interleave()
-evaluator.lora_prune_kd_interleave()
+if __name__ == '__main__':
+    #evaluator.prune_lora_finetune()
+    #evaluator.prune_full_finetune()
+    # evaluator.lora_prune_interleave()
+    evaluator.lora_prune_kd_interleave()
