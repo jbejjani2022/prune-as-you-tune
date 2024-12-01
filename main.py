@@ -84,7 +84,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     )
 
     if full_evaluate:
-        evaluator.evaluate_all()
+        evaluator.full_eval_run()
     else:
         evaluator.evaluate(use_lora=use_lora, use_kd=use_kd)
 
