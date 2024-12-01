@@ -14,7 +14,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
           num_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 3,
           output_dir : Annotated[Optional[str], typer.Option(help="Output directory for logs and model checkpoints")] = "logs",
           dataset : Annotated[Optional[str], typer.Option(help="Dataset to use for fine-tuning")] = "imdb",
-          full_evaluate : Annotated[Optional[bool], typer.Option(help="Evaluate using all variations of pruning methods, as well as full fine-tuning")] = False,
+          full_evaluate : Annotated[Optional[bool], typer.Option(help="Evaluate using all variations of pruning methods, as well as full fine-tuning")] = True,
           use_lora : Annotated[Optional[bool], typer.Option(help="Use LoRA adapters for fine-tuning")] = False,
           use_kd : Annotated[Optional[bool], typer.Option(help="Use knowledge distillation for fine-tuning")] = False,
           kd_alpha : Annotated[Optional[float], typer.Option(help="Alpha parameter for knowledge distillation")] = 0.8,
@@ -32,7 +32,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     # for interleaving methods:
     # pruning percentage per epoch = sparsity_target / num_train_epochs
 
-    save_dir = 'bert-imdb-r32-nomaxlen/80pct-sparsity-16epochs'
+    save_dir = 'bert-imdb-r32-nomaxlen/50pct-sparsity-5epochs/prune_sched/'
 
     training_args = TrainingArguments(
         output_dir=output_dir,
@@ -63,7 +63,8 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
                  "lora" : True,
                  "sparsity_target" : sparsity_target, 
                  "num_epochs" : num_epochs, 
-                 "schedule" : 0,}
+                 "schedule" : "linear",
+                 "prune_every_epoch" : 1}
 
     loss_args = {"alpha": kd_alpha, 
                  "temp": kd_temp, 
@@ -75,14 +76,11 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         training_args=training_args,
         max_length=None,  # set max_length = None if you don't want to truncate samples
         lora_config=lora_config,
-        pruning_method=pruning_method,
-        sparsity_target=sparsity_target,
-        alpha=0.8,
-        temp=2,
         device=device,
+        save_dir=save_dir,
         pruner = pruning_args,
         loss = loss_args,
-        save_dir=save_dir
+        eval_ppl=True
     )
 
     if full_evaluate:

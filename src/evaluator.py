@@ -54,6 +54,8 @@ class FineTuneEvaluator(ABC):
         self.num_epochs = self.training_args.num_train_epochs
         self.lora_config = lora_config
         self.lora_config.target_modules = self.get_target_modules()
+        self.pruner = pruner
+        self.loss = loss
         
         self.save_dir = save_dir
         

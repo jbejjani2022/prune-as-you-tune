@@ -12,15 +12,13 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
                  training_args,
                  max_length,
                  lora_config,
-                 pruning_method,
-                 sparsity_target,
-                 alpha,
-                 temp,
                  device,
                  save_dir,
+                 pruner,
+                 loss,
                  eval_ppl):
         model_name = 'bert-base-uncased'
-        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir, eval_ppl)
+        super().__init__(model_name, dataset, training_args, max_length, lora_config, device, save_dir, pruner, loss, eval_ppl)
         
     def get_target_modules(self):
         target_modules = [
