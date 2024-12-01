@@ -179,7 +179,7 @@ class FineTuneEvaluator(ABC):
         # pruning step before fine-tuning begins
         pruner.prune_pretrained(epoch=0)
         
-        logger = self.get_logger('lora_prune_interleave.csv', 'checkpoints/lora_prune_interleave')
+        logger = self.get_logger('lora_prune_interleave.csv', 'checkpoints/lora_prune_interleave', is_pruning=True)
         trainer = self.get_trainer(model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
@@ -197,7 +197,7 @@ class FineTuneEvaluator(ABC):
         pruner = self.get_pruner(model, lora=True)
         pruner.prune_pretrained(epoch=0)
         
-        logger = self.get_logger('lora_prune_kd_interleave.csv', 'checkpoints/lore_prune_kd_interleave')
+        logger = self.get_logger('lora_prune_kd_interleave.csv', 'checkpoints/lore_prune_kd_interleave', is_pruning=True)
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
@@ -215,7 +215,7 @@ class FineTuneEvaluator(ABC):
         pruner = self.get_pruner(model, lora=True)
         pruner.prune_pretrained(epoch=0)
         
-        logger = self.get_logger('lora_prune_kd_interleave_not_rs.csv', 'checkpoints/lore_prune_kd_interleave_not_rs')
+        logger = self.get_logger('lora_prune_kd_interleave_not_rs.csv', 'checkpoints/lore_prune_kd_interleave_not_rs', is_pruning=True)
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
@@ -234,7 +234,7 @@ class FineTuneEvaluator(ABC):
         pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
         pruner.report_sparsity()
         
-        logger = self.get_logger('prune_full_finetune.csv', 'checkpoints/prune_full_finetune')
+        logger = self.get_logger('prune_full_finetune.csv', 'checkpoints/prune_full_finetune', is_pruning=True)
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         pruner.remove()
@@ -255,7 +255,7 @@ class FineTuneEvaluator(ABC):
         pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
         pruner.report_sparsity()
         
-        logger = self.get_logger('prune_lora_finetune.csv', 'checkpoints/prune_lora_finetune')
+        logger = self.get_logger('prune_lora_finetune.csv', 'checkpoints/prune_lora_finetune', is_pruning=True)
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         pruner.remove()
