@@ -22,8 +22,8 @@ class KDTrainer(Trainer):
             teacher_output = self.teacher_model(**inputs)
             
         # Soft targets for teacher and student
-        student_probs = F.log_softmax(student_output.logits / self.temp, dim=1)
-        teacher_probs = F.softmax(teacher_output.logits / self.temp, dim=1)
+        student_probs = F.log_softmax(student_output.logits / self.temp, dim=-1)
+        teacher_probs = F.softmax(teacher_output.logits / self.temp, dim=-1)
         
         # KL divergence loss
         kd_loss = F.kl_div(student_probs, teacher_probs, reduction='batchmean') * (self.temp ** 2)
