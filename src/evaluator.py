@@ -268,12 +268,12 @@ class FineTuneEvaluator(ABC):
             self.report_perplexity(model)
 
     #same as prune_lora_finetune, but uses curlora matrix decomposition
-    def prune_curlora_finetune(self):
+    def prune_curlora_finetune(self, device):
         print('\n********* PRUNE THEN CURLoRA FINETUNE *********\n')
         model = copy.deepcopy(self.model)
 
         #get model with CustomLora integration
-        model = get_peft_model_with_curlora(model, self.lora_config) #assume CustomLoraConfig passed, not LoraConfig
+        model = get_peft_model_with_curlora(model, self.lora_config, device) #assume CustomLoraConfig passed, not LoraConfig
         #model.print_trainable_parameters()
         
         pruner = self.get_pruner(model, lora=True)
@@ -291,13 +291,13 @@ class FineTuneEvaluator(ABC):
             self.report_perplexity(model)
 
     #same as lora_prune_kd_interleave, but uses curlora matrix decomposition
-    def curlora_prune_kd_interleave(self):
+    def curlora_prune_kd_interleave(self, device):
         print('\n********* CURLORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
         model = copy.deepcopy(self.model)
         frozen_model = copy.deepcopy(model)
 
         #get model with CustomLora integration
-        model = get_peft_model_with_curlora(model, self.lora_config) #assume CustomLoraConfig passed, not LoraConfig
+        model = get_peft_model_with_curlora(model, self.lora_config, device) #assume CustomLoraConfig passed, not LoraConfig
 
         #init pruner
         model.print_trainable_parameters()

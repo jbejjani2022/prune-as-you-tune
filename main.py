@@ -49,8 +49,7 @@ curlora_config = CustomLoraConfig(
     r=32,                # Rank of LoRA
     lora_alpha=32,       # Scaling factor
     lora_dropout=0.1,     # Dropout rate
-    sampling_method='inverted_probs',
-    device=device
+    sampling_method='inverted_probs'
     #inference_mode=False
     #target_modules=['attn'],
 )
@@ -86,8 +85,8 @@ evaluator = BertBaseFineTuneEvaluator(
 #evaluator.lora_prune_kd_interleave()
 
 if __name__ == '__main__':  
-    evaluator.prune_curlora_finetune()
-    evaluator.curlora_prune_kd_interleave()
+    evaluator.prune_curlora_finetune(training_args.device)
+    evaluator.curlora_prune_kd_interleave(training_args.device)
 
 """
 evaluator.prune_lora_finetune(), setup output:
