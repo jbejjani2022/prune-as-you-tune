@@ -72,6 +72,21 @@ class CurloraLayer(nn.Module):
         R = W[row_indices, :]#.to(device)
         #print(f"C device: {C.device}")
         #print(f"R device: {R.device}")
+
+        #check inverted_probs sampling working as expected
+        indices_to_print = col_indices[:5]
+        sorted_probs, sorted_indices = torch.sort(inv_col_probs, descending=True)
+        ranks = torch.empty_like(inv_col_probs, dtype=torch.long)
+        ranks[sorted_indices] = torch.arange(1, len(inv_col_probs) + 1)
+
+        for idx in indices_to_print:
+          inv_prob = inv_col_probs[idx]
+          rank_of_inv_prob = ranks[idx]
+          print(f'Index: {idx.item()}, Inverted Probability: {inv_prob.item()}, Rank: {rank_of_inv_prob.item()}')
+
+        return C, R
+    
+
         return C, R
 
     def forward(self, x):
