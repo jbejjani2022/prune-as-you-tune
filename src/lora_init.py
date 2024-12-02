@@ -70,26 +70,24 @@ class CurloraLayer(nn.Module):
 
         C = W[:, col_indices]
         R = W[row_indices, :]
-        #print(f"C device: {C.device}")
-        #print(f"R device: {R.device}")
 
-        """#move inv_col_probs to correct device
-        #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        device = torch.device('cpu')
-        #inv_col_probs = inv_col_probs.to(device)
+        
+        ### verify that inverted_probs sampling is working correctly!
+        """inv_col_probs_list = inv_col_probs.cpu().tolist()
+        all_col_indices = list(range(len(inv_col_probs_list)))
+        col_inv_probs_pairs = list(zip(all_col_indices, inv_col_probs_list))
+        sorted_col_inv_probs_pairs = sorted(
+            col_inv_probs_pairs, key=lambda x: x[1], reverse=True
+        )
 
-        #check inverted_probs sampling working as expected
-        indices_to_print = col_indices[:5]
-        sorted_probs, sorted_indices = torch.sort(inv_col_probs, descending=True)
+        print("bottom 5! top 5!")
+        indices_to_print = sorted_col_inv_probs_pairs[:5] + sorted_col_inv_probs_pairs[-5:]
+        for idx, inv_prob in indices_to_print:
+            print(f'Index: {idx}, Inverted Probability: {inv_prob}')
 
-        ranks = torch.empty_like(inv_col_probs.to(device), dtype=torch.long, device=device)
-        ranks[sorted_indices] = torch.arange(1, len(inv_col_probs.to(device)) + 1, device=device)
-
-        for idx in indices_to_print:
-          inv_prob = inv_col_probs[idx]
-          rank_of_inv_prob = ranks[idx]
-          print(f'Index: {idx.item()}, Inverted Probability: {inv_prob.item()}, Rank: {rank_of_inv_prob.item()}')"""
-
+        for i in range(0, min(5, len(col_indices))):
+            print(f'selected probs: {inv_col_probs[col_indices[i]]}')"""
+    
         return C, R
 
     def forward(self, x):
