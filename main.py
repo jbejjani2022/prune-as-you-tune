@@ -14,7 +14,7 @@ os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
 def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
           ptg : Annotated[Optional[float], typer.Option(help="Percentage of parameters to prune per pruning call")] = 0.05,
           sparsity_target: Annotated[Optional[float], typer.Option(help="Target percentage of parameters to prune")] = 0.5,
-          num_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 3,
+          num_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 5,
           output_dir : Annotated[Optional[str], typer.Option(help="Output directory for logs and model checkpoints")] = "logs",
           dataset : Annotated[Optional[str], typer.Option(help="Dataset to use for fine-tuning")] = "imdb",
           full_evaluate : Annotated[Optional[bool], typer.Option(help="Evaluate using all variations of pruning methods, as well as full fine-tuning")] = False,
