@@ -13,6 +13,8 @@ class KDTrainer(Trainer):
         self.alpha = alpha
         self.temp = temp
         
+        print(f'TEMP = {self.temp}, ALPHA = {self.alpha}')
+        
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         student_output = model(**inputs)
         student_loss = student_output.loss
