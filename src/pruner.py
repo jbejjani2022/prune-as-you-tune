@@ -7,6 +7,8 @@ from transformers import TrainerCallback
 import torch.nn.utils.prune as prune
 import torch
 import torch.nn as nn
+import numpy as np
+import math
 
 
 class PruningCallback(TrainerCallback):
@@ -22,8 +24,6 @@ class PruningCallback(TrainerCallback):
         self.model = model
         self.num_epochs = num_epochs
         self.sparsity_target = sparsity_target
-        # for the interleaving methods: how much to prune the pretrained weights before each epoch
-        # more specifically, this is the ptg by which sparsity of pruning-eligible params will increase before each epoch
         self.lora = lora  # whether the model is being fine-tuned with lora
         if self.lora: print("Using LoRA")
         # pruning method
@@ -33,23 +33,26 @@ class PruningCallback(TrainerCallback):
         else:
             raise ValueError(f"Unsupported pruning method: {method}")
         
+        # self.schedule gives the ptg by which sparsity of pruning-eligible params will increase before each epoch
+        # e.g. self.schedule[0] = how much to increase sparsity before first epoch (epoch 1), self.schedule[1] = how much to increase sparsity before epoch 2
+        num_pruning_steps = math.ceil(num_epochs / prune_every_epoch)  # how many times will we have a non-zero prune ptg
         if schedule == "linear":
-            # Linear schedule: prune a fixed percentage of remaining weights at each epoch
-            self.schedule = [(sparsity_target/(num_epochs/prune_every_epoch)) * (i % prune_every_epoch == 0) for i in range(num_epochs)]
+            # Linear schedule: increase sparsity by a fixed percentage each epoch
+            ptg = sparsity_target / num_pruning_steps  # how much to increase sparsity on each non-zero pruning step
+            self.schedule = [ptg * (i % prune_every_epoch == 0) for i in range(num_epochs)]
         elif schedule == "agp":
-            n_pruning_epochs = (num_epochs) // prune_every_epoch
-            cumulative_pruning = [(sparsity_target * (1-(1 - i / n_pruning_epochs) ** 3))  for i in range(n_pruning_epochs)]
+            cumulative_pruning = [(sparsity_target * (1 - (1 - i / num_pruning_steps) ** 3))  for i in range(1, num_pruning_steps + 1)]
+            increments = np.diff([0] + cumulative_pruning)
             self.schedule = np.zeros(num_epochs)
-            self.schedule[0::prune_every_epoch] =  np.diff(cumulative_pruning) 
+            self.schedule[0::prune_every_epoch] = increments
+
         else:
             raise ValueError(f"Unsupported pruning schedule: {schedule}")
 
         print(f"Pruning schedule: {self.schedule}")
         
         print(f"Total sparsity will be {sum(self.schedule)}, target was {sparsity_target}")
-        #assert(sum(self.schedule)==sparsity_target)
-    
-        self.schedule.append(0) # don't prune after final epoch
+        # assert(sum(self.schedule)==sparsity_target)
 
         self.params = []  # params to prune, list of tuples: (module, param_name)
 
@@ -64,11 +67,11 @@ class PruningCallback(TrainerCallback):
                     if self.lora:
                         # Model is being fine-tuned with lora adapters
                         # Filter for non-trainable, non-LoRA parameters
-                        print(name)
-                        print(module.weight.requires_grad, "req grad")
-                        print("classifier" in name, "classifier")
+                        # print(name)
+                        # print(module.weight.requires_grad, "req grad")
+                        # print("classifier" in name, "classifier")
                         if not module.weight.requires_grad and "classifier" not in name:
-                            print("found module")
+                            # print("found module")
                             assert("lora" not in name)
                             self.params.append((module, 'weight'))
                     else:
@@ -90,11 +93,14 @@ class PruningCallback(TrainerCallback):
 
     # Function called at the end of each training epoch
     def on_epoch_end(self, args, state, control, **kwargs):
-        if state.epoch == self.num_epochs:
+        epoch = int(state.epoch)
+        print(f'state.epoch = {epoch}')
+        if epoch == self.num_epochs:
             # Don't prune after final epoch
             return
-        epoch_ptg = self.schedule[state.epoch]
-        self.prune_pretrained(state.epoch, epoch_ptg)
+        current_sparsity = sum(self.schedule[:epoch])   # current sparsity of the pruning-eligible params
+        epoch_ptg = self.schedule[epoch] / (1 - current_sparsity)     # how much to prune the remaining pruning-eligible params in order to increase sparsity by self.ptg
+        self.prune_pretrained(epoch, epoch_ptg)
         self.report_sparsity()
 
     # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
@@ -102,9 +108,10 @@ class PruningCallback(TrainerCallback):
     # TODO
     def prune_pretrained(self, epoch, epoch_ptg=None):
         if epoch_ptg is None:
+            assert(epoch == 0)
             epoch_ptg = self.schedule[epoch]
         
-        print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights before epoch {epoch}")
+        print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights before epoch {epoch + 1}, increasing sparsity of pretrained weights by {self.schedule[epoch] * 100:.2f}%")
 
         prune.global_unstructured(
             self.params,
