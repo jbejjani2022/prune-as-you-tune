@@ -57,6 +57,9 @@ class PPL:
         masked_lm_model = AutoModelForMaskedLM.from_pretrained(self.model_name, config=base_model.config).to(self.device)
         masked_lm_model.bert = base_model
         
+        # turn on eval mode
+        masked_lm_model.eval()
+        
         # calculate pseudo perplexity of masked LM
         print(f'calculating (pseudo) perplexity...')
         ppl = self.calculate_perplexity_pseudo(masked_lm_model)
