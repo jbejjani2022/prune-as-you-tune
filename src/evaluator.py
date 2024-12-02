@@ -76,7 +76,6 @@ class FineTuneEvaluator(ABC):
         if self.max_length is None:
             return self.tokenizer(examples["text"], padding="max_length", truncation=True)
         else:
-            print(f'max_length = {self.max_length}')
             return self.tokenizer(examples["text"], padding="max_length", truncation=True, max_length=self.max_length)
     
     def compute_metrics(self, eval_preds):
@@ -149,32 +148,35 @@ class FineTuneEvaluator(ABC):
     def evaluate(self, use_lora=True, use_kd=False, prune_interleave=True):
         logger = self.get_logger('custom_eval.csv', 'checkpoints/custom_eval')
         model = copy.deepcopy(self.model)
-        frozen_model = None
         pruner = None
         print(self.pruning_args)
         
         if use_lora:
-            frozen_model = copy.deepcopy(self.model)
-            model = get_peft_model(frozen_model, self.lora_config)
+            model = get_peft_model(model, self.lora_config)
+            model.print_trainable_parameters()
             
         if prune_interleave:
             pruner = self.get_pruner(model=model, lora=use_lora)
         
         if use_kd:
-            if frozen_model is None:
-                frozen_model = copy.deepcopy(self.model)
+            print("USING KD LOSS")
+            frozen_model = copy.deepcopy(self.model)  # teacher
             trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
-
-        
+            
         if not use_kd:
+            print("NOT USING KD LOSS")
             trainer = self.get_trainer(model, logger_callback=logger, pruning_callback=pruner)
 
         if pruner is not None:
             pruner.prune_pretrained(epoch=0)
-        trainer.train()
-
-        if pruner is not None:
+            pruner.report_sparsity()
+            trainer.train()
             pruner.remove()
+        if pruner is None:
+            trainer.train()
+            
+        if self.eval_ppl:
+            self.report_perplexity(model)
 
     # Fine-tunes all model weights
     def full_finetune(self):
