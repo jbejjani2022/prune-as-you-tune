@@ -54,38 +54,41 @@ class CurloraLayer(nn.Module):
         col_norms = torch.norm(W, dim=0) ** 2  #shape: [n]
         col_probs = col_norms / total_norm  #shape: [n]
         #invert col probs
-        inv_col_probs = 1 / col_probs#.to(device)
+        inv_col_probs = 1 / col_probs
         inv_col_probs /= inv_col_probs.sum() #normalize
 
         #row norms and probs (chatgpt corrected)
         row_norms = torch.norm(W, dim=1) ** 2  #shape: [m]
         row_probs = row_norms / total_norm  #shape: [m]
         #inver row probs
-        inv_row_probs = 1 / row_probs#.to(device)
+        inv_row_probs = 1 / row_probs
         inv_row_probs /= inv_row_probs.sum() #normalize
 
         #sample (based on inverted probabilities => lowest probabilities prioritized)
-        col_indices = torch.multinomial(inv_col_probs, rank, replacement=False)#.to(device)
-        row_indices = torch.multinomial(inv_row_probs, rank, replacement=False)#.to(device)
+        col_indices = torch.multinomial(inv_col_probs, rank, replacement=False)
+        row_indices = torch.multinomial(inv_row_probs, rank, replacement=False)
 
-        C = W[:, col_indices]#.to(device)
-        R = W[row_indices, :]#.to(device)
+        C = W[:, col_indices]
+        R = W[row_indices, :]
         #print(f"C device: {C.device}")
         #print(f"R device: {R.device}")
+
+        """#move inv_col_probs to correct device
+        #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = torch.device('cpu')
+        #inv_col_probs = inv_col_probs.to(device)
 
         #check inverted_probs sampling working as expected
         indices_to_print = col_indices[:5]
         sorted_probs, sorted_indices = torch.sort(inv_col_probs, descending=True)
-        ranks = torch.empty_like(inv_col_probs, dtype=torch.long)
-        ranks[sorted_indices] = torch.arange(1, len(inv_col_probs) + 1)
+
+        ranks = torch.empty_like(inv_col_probs.to(device), dtype=torch.long, device=device)
+        ranks[sorted_indices] = torch.arange(1, len(inv_col_probs.to(device)) + 1, device=device)
 
         for idx in indices_to_print:
           inv_prob = inv_col_probs[idx]
           rank_of_inv_prob = ranks[idx]
-          print(f'Index: {idx.item()}, Inverted Probability: {inv_prob.item()}, Rank: {rank_of_inv_prob.item()}')
-
-        return C, R
-    
+          print(f'Index: {idx.item()}, Inverted Probability: {inv_prob.item()}, Rank: {rank_of_inv_prob.item()}')"""
 
         return C, R
 
