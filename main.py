@@ -23,7 +23,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
           kd_alpha : Annotated[Optional[float], typer.Option(help="Alpha parameter for knowledge distillation")] = 0.5,
           kd_temp : Annotated[Optional[float], typer.Option(help="Temperature parameter for knowledge distillation")] = 2,
           kd_lambda_lora : Annotated[Optional[float], typer.Option(help="Lambda parameter for LoRA regularization in knowledge distillation")] = 0,
-          use_rs_lora : Annotated[Optional[bool], typer.Option(help="Use rsLoRA adapters for fine-tuning")] = False,
+          use_rs_lora : Annotated[Optional[bool], typer.Option(help="Use rsLoRA adapters for fine-tuning")] = True,
           lora_dropout : Annotated[Optional[float], typer.Option(help="Dropout rate for LoRA adapters")] = 0.1,
           lora_alpha : Annotated[Optional[float], typer.Option(help="Scaling factor for LoRA adapters")] = 32,
           lora_rank : Annotated[Optional[int], typer.Option(help="Rank of LoRA adapters")] = 32,
