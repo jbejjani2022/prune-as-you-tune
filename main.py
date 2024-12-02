@@ -8,7 +8,7 @@ import os
 
 app = typer.Typer()
 
-PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.7
+os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
 
 @app.command()
 def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
@@ -22,21 +22,28 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
           use_kd : Annotated[Optional[bool], typer.Option(help="Use knowledge distillation for fine-tuning")] = True,
           kd_alpha : Annotated[Optional[float], typer.Option(help="Alpha parameter for knowledge distillation")] = 0.5,
           kd_temp : Annotated[Optional[float], typer.Option(help="Temperature parameter for knowledge distillation")] = 2,
-          kd_lambda_lora : Annotated[Optional[float], typer.Option(help="Lambda parameter for LoRA regularization in knowledge distillation")] = 1e-5,
+          kd_lambda_lora : Annotated[Optional[float], typer.Option(help="Lambda parameter for LoRA regularization in knowledge distillation")] = 0,
           use_rs_lora : Annotated[Optional[bool], typer.Option(help="Use rsLoRA adapters for fine-tuning")] = False,
           lora_dropout : Annotated[Optional[float], typer.Option(help="Dropout rate for LoRA adapters")] = 0.1,
           lora_alpha : Annotated[Optional[float], typer.Option(help="Scaling factor for LoRA adapters")] = 32,
           lora_rank : Annotated[Optional[int], typer.Option(help="Rank of LoRA adapters")] = 32,
-          max_length: Annotated[Optional[int], typer.Option(help="Maximum length of input sequences")] = 512):
+          max_length: Annotated[Optional[int], typer.Option(help="Maximum length of input sequences")] = 512,
+          pruning_schedule : Annotated[Optional[str], typer.Option(help="Pruning schedule - can be agp or linear")] = "linear",
+          prune_every_epoch : Annotated[Optional[int], typer.Option(help="Prune at every n epoch")] = 1):
     
     pruning_method = "L1Unstructured"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
 
     # how sparse the pruned models should be after all training epochs
     # for interleaving methods:
     # pruning percentage per epoch = sparsity_target / num_train_epochs
 
-    save_dir = 'bert-imdb-r32-nomaxlen/50pct-sparsity-5epochs/prune_sched/'
+    pruning_schedule = pruning_schedule.lower()
+    if pruning_schedule != "agp":
+        pruning_schedule = "linear"
+
+    save_dir = f"bert-imdb-{max_length}/{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}/"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -49,7 +56,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         fp16=False,                  # Mixed precision training
         per_device_train_batch_size = 64,
         per_device_eval_batch_size = 64,
-        dataloader_num_workers=4
+        dataloader_num_workers=1,
     )
 
     print(f'dataset: {dataset}')
@@ -65,11 +72,13 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         use_rslora=use_rs_lora      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
     )
 
+    
+
     pruning_args = {"method" : pruning_method,
                  "sparsity_target" : sparsity_target, 
                  "num_epochs" : num_epochs, 
-                 "schedule" : "linear",
-                 "prune_every_epoch" : 1}
+                 "schedule" : pruning_schedule,
+                 "prune_every_epoch" : prune_every_epoch}
 
     loss_args = {"alpha": kd_alpha, 
                  "temp": kd_temp, 
