@@ -89,7 +89,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         n_samples=n_samples,
         dataset=dataset,
         training_args=training_args,
-        max_length=max_length,  # set max_length = None if you don't want to truncate samples
+        max_length=None,  # set max_length = None if you don't want to truncate samples
         lora_config=lora_config,
         device=device,
         save_dir=save_dir,
