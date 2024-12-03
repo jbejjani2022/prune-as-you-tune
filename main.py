@@ -5,6 +5,7 @@ import typer
 from typing import Optional, Annotated
 from src.finetune_evaluators import DistilBertFineTuneEvaluator, BertBaseFineTuneEvaluator
 import os
+import numpy as np
 
 app = typer.Typer()
 
@@ -29,7 +30,8 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
           lora_rank : Annotated[Optional[int], typer.Option(help="Rank of LoRA adapters")] = 32,
           max_length: Annotated[Optional[int], typer.Option(help="Maximum length of input sequences")] = 512,
           pruning_schedule : Annotated[Optional[str], typer.Option(help="Pruning schedule - can be agp or linear")] = "linear",
-          prune_every_epoch : Annotated[Optional[int], typer.Option(help="Prune at every n epoch")] = 1):
+          prune_every_epoch : Annotated[Optional[int], typer.Option(help="Prune at every n epoch")] = 1,
+          start_pruning_epoch_ptg : Annotated[Optional[int], typer.Option(help="Start pruning at n percent epoch of training - will be rounded down")] = 0):
     
     pruning_method = "L1Unstructured"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -43,7 +45,12 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     if pruning_schedule != "agp":
         pruning_schedule = "linear"
 
-    save_dir = f"bert-imdb-{max_length}/{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}/"
+    pruning_start_epoch = int(np.floor(num_epochs * start_pruning_epoch_ptg))
+    
+    if pruning_start_epoch >= num_epochs:
+        pruning_start_epoch = num_epochs - 1
+
+    save_dir = f"bert-imdb-{max_length}/{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-start{pruning_start_epoch}-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}/"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -72,13 +79,13 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         use_rslora=use_rs_lora      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
     )
 
-    
 
     pruning_args = {"method" : pruning_method,
                  "sparsity_target" : sparsity_target, 
                  "num_epochs" : num_epochs, 
                  "schedule" : pruning_schedule,
-                 "prune_every_epoch" : prune_every_epoch}
+                 "prune_every_epoch" : prune_every_epoch,
+                 "pruning_start_epoch" : pruning_start_epoch,}
 
     loss_args = {"alpha": kd_alpha, 
                  "temp": kd_temp, 

@@ -168,7 +168,8 @@ class FineTuneEvaluator(ABC):
             trainer = self.get_trainer(model, logger_callback=logger, pruning_callback=pruner)
 
         if pruner is not None:
-            pruner.prune_pretrained(epoch=0)
+            if self.pruning_args["pruning_start_epoch"] == 0:
+                pruner.prune_pretrained(epoch=0)
             pruner.report_sparsity()
             trainer.train()
             pruner.remove()

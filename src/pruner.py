@@ -20,7 +20,8 @@ class PruningCallback(TrainerCallback):
                  sparsity_target, 
                  num_epochs, 
                  schedule : str,
-                 prune_every_epoch : int):
+                 prune_every_epoch : int,
+                 pruning_start_epoch : int):
         self.model = model
         self.num_epochs = num_epochs
         self.sparsity_target = sparsity_target
@@ -35,17 +36,19 @@ class PruningCallback(TrainerCallback):
         
         # self.schedule gives the ptg by which sparsity of pruning-eligible params will increase before each epoch
         # e.g. self.schedule[0] = how much to increase sparsity before first epoch (epoch 1), self.schedule[1] = how much to increase sparsity before epoch 2
-        num_pruning_steps = math.ceil(num_epochs / prune_every_epoch)  # how many times will we have a non-zero prune ptg
+
+        num_pruning_steps = math.ceil((num_epochs - pruning_start_epoch) / prune_every_epoch)  # how many times will we have a non-zero prune ptg
+        self.schedule = np.zeros(num_epochs)
+
         if schedule == "linear":
             # Linear schedule: increase sparsity by a fixed percentage each epoch
             ptg = sparsity_target / num_pruning_steps  # how much to increase sparsity on each non-zero pruning step
-            self.schedule = [ptg * (i % prune_every_epoch == 0) for i in range(num_epochs)]
+            for i in range(num_epochs):
+                self.schedule[i] = ptg * (i >= pruning_start_epoch and (i - pruning_start_epoch) % prune_every_epoch == 0)
         elif schedule == "agp":
             cumulative_pruning = [(sparsity_target * (1 - (1 - i / num_pruning_steps) ** 3))  for i in range(1, num_pruning_steps + 1)]
             increments = np.diff([0] + cumulative_pruning)
-            self.schedule = np.zeros(num_epochs)
-            self.schedule[0::prune_every_epoch] = increments
-
+            self.schedule[pruning_start_epoch::prune_every_epoch] = increments
         else:
             raise ValueError(f"Unsupported pruning schedule: {schedule}")
 
