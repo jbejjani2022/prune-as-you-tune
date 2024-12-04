@@ -141,3 +141,8 @@ def replace_modules(model, peft_config, device):
             model._modules[name] = CurloraLayer(module, peft_config, device)
         else:
             replace_modules(module, peft_config, device)
+
+
+#TODO:
+# 1) verify that layer replacement is happening correctly
+# 2) decide if replacing all linear layers is the correct thing to do (should we be replacing even more layers? or fewer? or...?)
