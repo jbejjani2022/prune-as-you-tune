@@ -34,7 +34,8 @@ class FineTuneEvaluator(ABC):
                  temp : int,
                  device,
                  save_dir : str,
-                 eval_ppl : bool = True):
+                 eval_ppl : bool = True,
+                 num_samples: int = -1):
         
         # load tokenizer
         self.max_length = max_length
@@ -42,8 +43,19 @@ class FineTuneEvaluator(ABC):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         # load and tokenize the dataset
         self.dataset = load_dataset(dataset).map(self.tokenize, batched=True)
-        self.train_dataset = self.dataset["train"].shuffle(seed=42)
-        self.eval_dataset = self.dataset["test"].shuffle(seed=42)
+        #self.train_dataset = self.dataset["train"].shuffle(seed=42)
+        #self.eval_dataset = self.dataset["test"].shuffle(seed=42)
+
+        dataset_size = len(self.dataset["test"]) #we'll assume test size <= train size
+        if num_samples is not None and num_samples != -1:
+            num_samples = min(num_samples, dataset_size)
+            self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(num_samples))
+            self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(num_samples))
+        else:
+            self.train_dataset = self.dataset["train"].shuffle(seed=42)
+            self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(num_samples))
+
+
         print(f'{self.train_dataset.num_rows} training samples')
         print(f'{self.eval_dataset.num_rows} evaluation samples')
         self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
