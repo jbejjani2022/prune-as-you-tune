@@ -64,7 +64,7 @@ pissalora_config = LoraConfig(
     init_lora_weights='pissa'
 )
 
-evaluator = BertBaseFineTuneEvaluator(
+evaluator = DistilBertFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
     max_length=None,  # set max_length = None if you don't want to truncate samples
