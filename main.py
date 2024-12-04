@@ -44,7 +44,7 @@ lora_config = LoraConfig(
     use_rslora=True      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
 )
 
-evaluator = DistilBertFineTuneEvaluator(#BertBaseFineTuneEvaluator(
+evaluator = BertBaseFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
     max_length=None,  # set max_length = None if you don't want to truncate samples

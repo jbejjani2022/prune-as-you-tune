@@ -51,13 +51,11 @@ class PPL:
             finetuned_seq_model = finetuned_seq_model.merge_and_unload()
 
         # extract bert parameters from the finetuned seq classifier
-        #base_model = finetuned_seq_model.bert
-        base_model = finetuned_seq_model.distilbert
+        base_model = finetuned_seq_model.bert
         
         # copy over finetuned seq model parameters to a masked LM architecture
         masked_lm_model = AutoModelForMaskedLM.from_pretrained(self.model_name, config=base_model.config).to(self.device)
-        #masked_lm_model.bert = base_model
-        masked_lm_model.distilbert = base_model
+        masked_lm_model.bert = base_model
         
         # calculate pseudo perplexity of masked LM
         print(f'calculating (pseudo) perplexity...')
@@ -163,8 +161,7 @@ class PPL:
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #model_name = 'bert-base-uncased'
-    model_name = 'distilbert-base-uncased'
+    model_name = 'bert-base-uncased'
     
     # Get perplexity of base, non-finetuned bert model
     # model = AutoModelForMaskedLM.from_pretrained(model_name).to(device)
@@ -182,11 +179,11 @@ if __name__ == "__main__":
     #         '80pct-sparsity-8epochs/checkpoints/full_finetune/ckpt-epoch-8',
     #         '80pct-sparsity-16epochs/checkpoints/full_finetune/ckpt-epoch-2']
     
-    root = 'distilbert-imdb-r32-nomaxlen/'
-    paths = ['50pct-sparsity-5epochs/checkpoints/lora_finetune/ckpt-epoch-5']#,
-            #'50pct-sparsity-10epochs/checkpoints/lora_finetune/ckpt-epoch-10',
-            #'80pct-sparsity-8epochs/checkpoints/lora_finetune/ckpt-epoch-8',
-            #'80pct-sparsity-16epochs/checkpoints/lora_finetune/ckpt-epoch-14']
+    root = 'bert-imdb-r32-nomaxlen/'
+    paths = [#'50pct-sparsity-5epochs/checkpoints/lora_finetune/ckpt-epoch-5',
+            '50pct-sparsity-10epochs/checkpoints/lora_finetune/ckpt-epoch-10',
+            '80pct-sparsity-8epochs/checkpoints/lora_finetune/ckpt-epoch-8',
+            '80pct-sparsity-16epochs/checkpoints/lora_finetune/ckpt-epoch-14']
     
     for ckpt in paths:
         perplexity = ppl.eval(path = root + ckpt)
