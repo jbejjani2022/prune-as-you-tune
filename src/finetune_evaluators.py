@@ -49,9 +49,10 @@ class DistilBertFineTuneEvaluator(FineTuneEvaluator):
                  temp,
                  device,
                  save_dir,
-                 eval_ppl):
+                 eval_ppl,
+                 num_samples):
         model_name = 'distilbert-base-uncased'
-        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir, eval_ppl)
+        super().__init__(model_name, dataset, training_args, max_length, lora_config, pruning_method, sparsity_target, alpha, temp, device, save_dir, eval_ppl, num_samples)
         
     def get_target_modules(self):
         return ['q_lin', 'k_lin', 'v_lin', 'lin1', 'lin2']
