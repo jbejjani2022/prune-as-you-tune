@@ -183,10 +183,10 @@ if __name__ == "__main__":
     #         '80pct-sparsity-16epochs/checkpoints/full_finetune/ckpt-epoch-2']
     
     root = 'distilbert-imdb-r32-nomaxlen/'
-    paths = [#'50pct-sparsity-5epochs/checkpoints/lora_finetune/ckpt-epoch-5',
-            '50pct-sparsity-10epochs/checkpoints/lora_finetune/ckpt-epoch-10',
-            '80pct-sparsity-8epochs/checkpoints/lora_finetune/ckpt-epoch-8',
-            '80pct-sparsity-16epochs/checkpoints/lora_finetune/ckpt-epoch-14']
+    paths = ['50pct-sparsity-5epochs/checkpoints/lora_finetune/ckpt-epoch-5']#,
+            #'50pct-sparsity-10epochs/checkpoints/lora_finetune/ckpt-epoch-10',
+            #'80pct-sparsity-8epochs/checkpoints/lora_finetune/ckpt-epoch-8',
+            #'80pct-sparsity-16epochs/checkpoints/lora_finetune/ckpt-epoch-14']
     
     for ckpt in paths:
         perplexity = ppl.eval(path = root + ckpt)
