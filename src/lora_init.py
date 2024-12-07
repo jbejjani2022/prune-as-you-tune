@@ -97,7 +97,7 @@ class CurloraLayer(nn.Module):
         #print(f"U device: {self.U.device}")
         #print(f"R device: {self.R.device}")
         device = x.device
-        W_adapted = self.C @ self.U @ self.R
+        W_adapted = self.C.to(device) @ self.U.to(device) @ self.R.to(device)
 
         #output given by W + delta_W
         output = x @ (self.original_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
@@ -108,20 +108,6 @@ class CurloraLayer(nn.Module):
         return output
     
 
-"""def get_peft_model_with_curlora(model, peft_config):
-    #run customlora, if specified
-    if isinstance(peft_config, CustomLoraConfig):
-        #replace linear layers with CurloraLayers. 
-        for name, module in model.named_modules():
-            if isinstance(module, nn.Linear):
-                setattr(model, name, CurloraLayer(module, peft_config))
-        return model
-    #default to standard lora
-    else:
-        return get_peft_model(model, peft_config)"""
-
-#TODO: the following works, but is not actually super useful. Need to think more about this before running tests. TODO: does replacing a different layer make more sense?
-#chatgpt corrected, to fix dictionary concurrent changes error
 def get_peft_model_with_curlora(model, peft_config, device):
     if isinstance(peft_config, CustomLoraConfig):
         replace_modules(model, peft_config, device)
@@ -141,8 +127,3 @@ def replace_modules(model, peft_config, device):
             model._modules[name] = CurloraLayer(module, peft_config, device)
         else:
             replace_modules(module, peft_config, device)
-
-
-#TODO:
-# 1) verify that layer replacement is happening correctly
-# 2) decide if replacing all linear layers is the correct thing to do (should we be replacing even more layers? or fewer? or...?)

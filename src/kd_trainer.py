@@ -15,27 +15,34 @@ class KDTrainer(Trainer):
         self.lambda_lora = lambda_lora
         self.loss_fct = nn.CrossEntropyLoss()
         
-    def compute_loss(self, model, inputs, return_outputs=False, **kwargs): #TODO: is this the best way to handle num_items_in_batch parameter?
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         # STANDARD LOSS
         outputs = model(**inputs)
         logits = outputs.logits
         labels = inputs.get("labels")
+
         # cross-entropy loss
         std_loss = self.loss_fct(logits, labels)
+
         # L2 regularization
-        lora_params = [param for name, param in model.named_parameters() if "lora" in name]
-        lora_l2 = sum(torch.sum(param ** 2) for param in lora_params)
+        #lora_params = [param for name, param in model.named_parameters() if "lora" in name]
+        #lora_l2 = sum(torch.sum(param ** 2) for param in lora_params)
         # strength of regularization term
-        std_loss += self.lambda_lora * lora_l2
+        #std_loss += self.lambda_lora * lora_l2
+
         # KD-LOSS
         # Forward pass for teacher model (no gradients required)
-        teach_outputs = self.teacher_model(**inputs)
+        #NOTE: wrapped forward pass in torch.no_grad(). goal = resource efficiency
+        with torch.no_grad():
+            teach_outputs = self.teacher_model(**inputs)
         teach_logits = teach_outputs.logits
+
         # temperature
         student_probs = F.log_softmax(logits / self.temp, dim=1)
-        teacher_probs = F.softmax(teach_logits / self.temp, dim=1)
+        #NOTE: I changed softmax --> log_softmax, and log_target --> True, because log_softmax can help with stability and I recall discussion on wanting more stable results
+        teacher_probs = F.log_softmax(teach_logits / self.temp, dim=1)
         # KL divergence loss
-        kd_loss = F.kl_div(student_probs, teacher_probs, reduction='batchmean') * (self.temp ** 2)
-        loss = self.alpha * std_loss + (1-self.alpha) * kd_loss
+        kd_loss = F.kl_div(student_probs, teacher_probs, reduction='batchmean', log_target=True) * (self.temp ** 2)
 
+        loss = self.alpha * std_loss + (1-self.alpha) * kd_loss
         return (loss, outputs) if return_outputs else loss

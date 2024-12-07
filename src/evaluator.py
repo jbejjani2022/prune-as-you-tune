@@ -312,7 +312,7 @@ class FineTuneEvaluator(ABC):
         model = get_peft_model_with_curlora(model, self.lora_config, device) #assume CustomLoraConfig passed, not LoraConfig
 
         #init pruner
-        model.print_trainable_parameters()
+        #model.print_trainable_parameters()
         pruner = self.get_pruner(model, lora=True)
         pruner.prune_pretrained(epoch=0)
 

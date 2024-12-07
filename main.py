@@ -86,7 +86,7 @@ evaluator = DistilBertFineTuneEvaluator(
 #evaluator.lora_prune_kd_interleave()
 
 if __name__ == '__main__':  
-    evaluator.prune_curlora_finetune(training_args.device)
+    #sevaluator.prune_curlora_finetune(training_args.device)
     evaluator.curlora_prune_kd_interleave(training_args.device)
 
 """
