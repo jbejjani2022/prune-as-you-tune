@@ -36,4 +36,4 @@ class LoggerCallback(TrainerCallback):
         # Save the entire trainer state, which includes model, optimizer, and scheduler states
         kwargs["model"].save_pretrained(checkpoint_path)  # Save model
         state.save_to_json(os.path.join(checkpoint_path, "trainer_state.json"))  # Save trainer state (includes optimizer, scheduler)
-        print(f"Epoch {epoch} checkpoint saved at {checkpoint_path}")
+        print(f"Epoch {epoch} checkpoint saved at {checkpoint_path}, NOTE: loading from checkpoings perilous with curlora")

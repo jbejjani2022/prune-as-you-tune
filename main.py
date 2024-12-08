@@ -1,8 +1,9 @@
 from transformers import TrainingArguments
 from peft import LoraConfig, TaskType
 import torch
+from torch import nn
 
-from src.lora_init import CustomLoraConfig
+from src.lora_init import CustomLoraConfig, CurloraLayer
 
 from src.finetune_evaluators import DistilBertFineTuneEvaluator, BertBaseFineTuneEvaluator
 
@@ -36,23 +37,30 @@ print(f'sparsity target: {sparsity_target}')
 print(f'num train epochs: {num_epochs}')
 print(training_args.device)
 
-lora_config = LoraConfig(
+"""curlora_config = LoraConfig(
     task_type=TaskType.SEQ_CLS,
     r=32,                # Rank of LoRA
     lora_alpha=32,       # Scaling factor
     lora_dropout=0.1,    # Dropout rate
     use_rslora=True      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
-)
+    #target_modules=['all-linear']
+)"""
 
 curlora_config = CustomLoraConfig(
     task_type=TaskType.SEQ_CLS,
-    r=32,                # Rank of LoRA
+    r=64,                # Rank of LoRA
     lora_alpha=32,       # Scaling factor
     lora_dropout=0.1,     # Dropout rate
-    sampling_method='inverted_probs'
+    sampling_method='inverted_probs',
+    #target_modules=["query", "key"]
+    target_modules=['all-linear']
     #inference_mode=False
     #target_modules=['attn'],
 )
+
+# def mapping from base layers --> CuRLoRA layers
+custom_module_mapping = {nn.Linear: CurloraLayer}
+curlora_config._register_custom_module(custom_module_mapping)
 
 #svd based decomposition (as opposed to default, which I believe is gauss for rslora, though TODO verify this before running pissa experiments)
 #btw: not attached to this particular svd based decomposition, tho I do think we should test one arbitrarily chosen svd approach
@@ -68,7 +76,6 @@ evaluator = DistilBertFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
     max_length=None,  # set max_length = None if you don't want to truncate samples
-    #lora_config=lora_config,
     lora_config=curlora_config,
     pruning_method=pruning_method,
     sparsity_target=sparsity_target,
@@ -76,8 +83,8 @@ evaluator = DistilBertFineTuneEvaluator(
     temp=2,
     device=device,
     save_dir=save_dir,
-    eval_ppl=True , # evaluate perplexity on orig task after each finetuning
-    num_samples = 5000
+    eval_ppl=False , # evaluate perplexity on orig task after each finetuning
+    num_samples = 25000
 )
 
 #evaluator.prune_lora_finetune()
@@ -86,7 +93,7 @@ evaluator = DistilBertFineTuneEvaluator(
 #evaluator.lora_prune_kd_interleave()
 
 if __name__ == '__main__':  
-    #sevaluator.prune_curlora_finetune(training_args.device)
+    evaluator.prune_curlora_finetune(training_args.device)
     evaluator.curlora_prune_kd_interleave(training_args.device)
 
 """

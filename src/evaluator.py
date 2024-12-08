@@ -17,8 +17,9 @@ from src.logger import LoggerCallback
 from src.pruner import PruningCallback
 from src.perplexity import PPL
 
-from src.lora_init import CustomLoraConfig, get_peft_model_with_curlora
+from src.lora_init import CustomLoraConfig, CurloraLayer#, get_peft_model_with_curlora
 
+from torch import nn
 
 class FineTuneEvaluator(ABC):
     
@@ -70,7 +71,7 @@ class FineTuneEvaluator(ABC):
         self.num_epochs = self.training_args.num_train_epochs
         self.lora_config = lora_config
         print(f'lora_config.r: {lora_config.r}')
-        print(f'lora_config.sampling_method: {lora_config.sampling_method}')
+        #print(f'lora_config.sampling_method: {lora_config.sampling_method}')
         self.lora_config.target_modules = self.get_target_modules()
         self.pruning_method = pruning_method
         self.sparsity_target = sparsity_target
@@ -284,13 +285,27 @@ class FineTuneEvaluator(ABC):
         print('\n********* PRUNE THEN CURLoRA FINETUNE *********\n')
         model = copy.deepcopy(self.model)
 
+        custom_module_mapping = {nn.Linear: CurloraLayer}
+        self.lora_config._register_custom_module(custom_module_mapping)
+
+        #print(f"from prune_curlora_finetune: self.lora_config.r: {self.lora_config.r}")
+
         #get model with CustomLora integration
-        model = get_peft_model_with_curlora(model, self.lora_config, device) #assume CustomLoraConfig passed, not LoraConfig
-        #model.print_trainable_parameters()
+        #model = get_peft_model_with_curlora(model, self.lora_config, device) #assume CustomLoraConfig passed, not LoraConfig
+        model = get_peft_model(model, self.lora_config)
+        model.to(device) #new addition!
+
+        # After applying custom_module_mapping and get_peft_model
+        for name, module in model.named_modules():
+            if isinstance(module, CurloraLayer):
+                print(f"Found CurloraLayer: {name}")
+                for param_name, param in module.named_parameters():
+                    print(f"  Param: {param_name}, requires_grad: {param.requires_grad}")
+
         
         pruner = self.get_pruner(model, lora=True)
         pruner.report_sparsity()
-        print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
+        #print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
         pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
         pruner.report_sparsity()
         
@@ -309,7 +324,8 @@ class FineTuneEvaluator(ABC):
         frozen_model = copy.deepcopy(model)
 
         #get model with CustomLora integration
-        model = get_peft_model_with_curlora(model, self.lora_config, device) #assume CustomLoraConfig passed, not LoraConfig
+        #model = get_peft_model_with_curlora(model, self.lora_config, device) #assume CustomLoraConfig passed, not LoraConfig
+        model = get_peft_model(model, self.lora_config)
 
         #init pruner
         #model.print_trainable_parameters()

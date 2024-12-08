@@ -23,6 +23,9 @@ class PruningCallback(TrainerCallback):
         # pruning method
         if method == "L1Unstructured":
             self.method = prune.L1Unstructured
+        if method == "loraprune":
+            #TODO
+            pass
         # support other methods here
         else:
             raise ValueError(f"Unsupported pruning method: {method}")

@@ -4,22 +4,30 @@ from peft import get_peft_model
 import torch
 import torch.nn as nn
 
+from peft.tuners.lora.layer import LoraLayer
+
 class CustomLoraConfig(LoraConfig):
 
     def __init__(self, **kwargs):
         super().__init__()
 
-        self.cur_rank = kwargs.get('r', self.r) #we're usually passing r=32
+        self.r = kwargs.get('r', self.r) #for some reason, this is necessary
         self.sampling_method = kwargs.get('sampling_method', 'inverted_probs')
         #self.device = kwargs.get('device')
         #print(f'kwargs customloraconfig: {self.device}')
 
 
-class CurloraLayer(nn.Module):
-    def __init__(self, original_layer, config: CustomLoraConfig, device):
-        super().__init__()
+#NOTE: horrendous -- When loading the model, you have to register the custom modules again
+class CurloraLayer(nn.Module, LoraLayer):
+    #def __init__(self, original_layer, config: CustomLoraConfig, device):
+    def __init__(self, original_layer, adapter_name, **kwargs):
+        nn.Module.__init__(self)
+        LoraLayer.__init__(self, original_layer, **kwargs)
+        #super().__init__()
+        #print("created CurloraLayer!")
+
         self.original_layer = original_layer
-        self.config = config
+        #self.config = lora_config
 
         # freeze original layer parameters. TODO: verify this, chatgpt recommended
         self.original_layer.weight.requires_grad = False
@@ -28,19 +36,28 @@ class CurloraLayer(nn.Module):
 
         W = original_layer.weight.data
         #default sampling method is inverted probabilities (ie, prioritize rows and columns with lowest values)
-        self.C, self.R = self.compute_C_and_R(W, config.cur_rank, config.sampling_method)
+        #self.C, self.R = self.compute_C_and_R(W, lora_config.r, lora_config.sampling_method)
+        #print(f"from curloralayer init: {kwargs.get('r', -1)}")
+        r = kwargs.get('r', 64) #NOTE: check print statement above to ensure not hardcoded
+        sm = kwargs.get('sampling_method', 'inverted_probs')
+        self.C, self.R = self.compute_C_and_R(W, r, sm)
+
         #move C, R to device
-        self.C = self.C.to(device)
-        self.R = self.R.to(device)
+        #self.C = self.C.to(device)
+        #self.R = self.R.to(device)
 
         #init U --> zero matrix
-        self.U = nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)))
+        #self.U = nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)))
+        self.lora_U = nn.ParameterDict({
+            f"lora_U_{adapter_name}": nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
+        })
+        self.adapter_name = adapter_name
 
         #freeze C, R (we will only update U)
         self.C.requires_grad = False
         self.R.requires_grad = False
 
-    #NOTE: assume sampling method = inverted probabilities 
+    #assuming sampling method = inverted probabilities 
     def compute_C_and_R(self, W, rank, sampling_method): 
         #device = W.device
         num_rows, num_cols = W.size()
@@ -70,7 +87,6 @@ class CurloraLayer(nn.Module):
 
         C = W[:, col_indices]
         R = W[row_indices, :]
-
         
         ### verify that inverted_probs sampling is working correctly!
         """inv_col_probs_list = inv_col_probs.cpu().tolist()
@@ -89,6 +105,10 @@ class CurloraLayer(nn.Module):
             print(f'selected probs: {inv_col_probs[col_indices[i]]}')"""
     
         return C, R
+    
+    """
+    Do I need a hook?
+    """
 
     def forward(self, x):
         #W_adapted = C * U * R
@@ -97,7 +117,8 @@ class CurloraLayer(nn.Module):
         #print(f"U device: {self.U.device}")
         #print(f"R device: {self.R.device}")
         device = x.device
-        W_adapted = self.C.to(device) @ self.U.to(device) @ self.R.to(device)
+        U = self.lora_U[f"lora_U_{self.adapter_name}"]
+        W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
 
         #output given by W + delta_W
         output = x @ (self.original_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
@@ -107,6 +128,9 @@ class CurloraLayer(nn.Module):
 
         return output
     
+
+
+### deprecated ###
 
 def get_peft_model_with_curlora(model, peft_config, device):
     if isinstance(peft_config, CustomLoraConfig):
