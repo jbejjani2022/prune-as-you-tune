@@ -23,7 +23,6 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
           use_kd : Annotated[Optional[bool], typer.Option(help="Use knowledge distillation for fine-tuning")] = True,
           kd_alpha : Annotated[Optional[float], typer.Option(help="Alpha parameter for knowledge distillation")] = 0.5,
           kd_temp : Annotated[Optional[float], typer.Option(help="Temperature parameter for knowledge distillation")] = 4,
-          kd_lambda_lora : Annotated[Optional[float], typer.Option(help="Lambda parameter for LoRA regularization in knowledge distillation")] = 0,
           use_rs_lora : Annotated[Optional[bool], typer.Option(help="Use rsLoRA adapters for fine-tuning")] = True,
           lora_dropout : Annotated[Optional[float], typer.Option(help="Dropout rate for LoRA adapters")] = 0.1,
           lora_alpha : Annotated[Optional[float], typer.Option(help="Scaling factor for LoRA adapters")] = 32,
@@ -81,15 +80,14 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
 
 
     pruning_args = {"method" : pruning_method,
-                 "sparsity_target" : sparsity_target, 
-                 "num_epochs" : num_epochs, 
-                 "schedule" : pruning_schedule,
-                 "prune_every_epoch" : prune_every_epoch,
-                 "pruning_start_epoch" : pruning_start_epoch,}
+                    "sparsity_target" : sparsity_target, 
+                    "num_epochs" : num_epochs, 
+                    "schedule" : pruning_schedule,
+                    "prune_every_epoch" : prune_every_epoch,
+                    "pruning_start_epoch" : pruning_start_epoch}
 
     loss_args = {"alpha": kd_alpha, 
                  "temp": kd_temp, 
-                 "lambda_lora": kd_lambda_lora,
                  "use_kd_loss": use_kd}
 
     evaluator = BertBaseFineTuneEvaluator(
@@ -101,7 +99,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         device=device,
         save_dir=save_dir,
         pruning_args = pruning_args,
-        loss = loss_args,
+        loss_args = loss_args,
         eval_ppl=True
     )
 

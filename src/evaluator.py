@@ -30,7 +30,7 @@ class FineTuneEvaluator(ABC):
                  device,
                  save_dir : str,
                  pruning_args : dict,
-                 loss : dict,
+                 loss_args : dict,
                  eval_ppl : bool = True):
         
         # load tokenizer
@@ -56,7 +56,7 @@ class FineTuneEvaluator(ABC):
         self.lora_config = lora_config
         self.lora_config.target_modules = self.get_target_modules()
         self.pruning_args = pruning_args
-        self.loss = loss
+        self.loss_args = loss_args
 
         self.save_dir = save_dir
         
@@ -102,21 +102,18 @@ class FineTuneEvaluator(ABC):
         )
 
     # Returns a custom Knowledge-Distillation Trainer
-    def get_kd_trainer(self, student, teacher, temp, logger_callback=None, pruning_callback=None):
+    def get_kd_trainer(self, student, teacher, logger_callback=None, pruning_callback=None):
         callbacks = []
         if logger_callback:
             callbacks.append(logger_callback)
         if pruning_callback:
             callbacks.append(pruning_callback)
         
-        print(f'KD TEMPERATURE = {temp}')
-        
         return KDTrainer(
             teacher_model=teacher,
             model=student,
-            alpha=self.loss['alpha'],
-            temp = self.loss['temp'],
-            lambda_lora=self.loss['lambda_lora'],
+            alpha=self.loss_args['alpha'],
+            temp = self.loss_args['temp'],
             args=self.training_args,
             train_dataset=self.train_dataset,
             eval_dataset=self.eval_dataset,
@@ -223,10 +220,7 @@ class FineTuneEvaluator(ABC):
             self.report_perplexity(model)
     
     # Same as lora_prune_finetune but fine-tunes using KD loss via frozen teacher model
-    def lora_prune_kd_interleave(self, temp=None):
-        if temp is None:
-            temp = self.temp
-            
+    def lora_prune_kd_interleave(self):
         print('\n********* LORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
         model = copy.deepcopy(self.model)
         frozen_model = copy.deepcopy(model)
@@ -239,8 +233,8 @@ class FineTuneEvaluator(ABC):
             pruner.prune_pretrained(epoch=0)
         pruner.report_sparsity()
         
-        logger = self.get_logger(f'lora_prune_kd_interleave_temp{temp}.csv', f'checkpoints/lora_prune_kd_interleave_temp{temp}')
-        trainer = self.get_kd_trainer(model, frozen_model, temp, pruning_callback=pruner, logger_callback=logger)
+        logger = self.get_logger(f'lora_prune_kd_interleave.csv', f'checkpoints/lora_prune_kd_interleave')
+        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
         
