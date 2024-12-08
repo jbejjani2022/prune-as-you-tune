@@ -56,8 +56,8 @@ curlora_config = CustomLoraConfig(
     lora_alpha=32,       # Scaling factor
     lora_dropout=0.1,     # Dropout rate
     sampling_method='inverted_probs',
-    #target_modules=["query", "key"]
-    target_modules=['all-linear']
+    target_modules=["query", "key"]
+    #target_modules=['all-linear']
     #inference_mode=False
     #target_modules=['attn'],
 )
