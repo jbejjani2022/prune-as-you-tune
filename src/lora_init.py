@@ -111,11 +111,9 @@ class CurloraLayer(nn.Module, LoraLayer):
     
 
     def forward(self, x):
-        #W_adapted = C * U * R
-        #print(f"x device: {x.device}")
-        #print(f"C device: {self.C.device}")
-        #print(f"U device: {self.U.device}")
-        #print(f"R device: {self.R.device}")
+        if not self.training:  # During evaluation
+            print("Forward pass in eval mode")
+            print(f"Input shape: {x.shape}")
         device = x.device
         U = self.lora_U[f"lora_U_{self.adapter_name}"]
         #W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
@@ -123,6 +121,9 @@ class CurloraLayer(nn.Module, LoraLayer):
 
         #output given by W + delta_W
         output = x @ (self.original_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
+
+        if not self.training:
+            print(f"Output shape: {output.shape}")
 
         if self.original_layer.bias is not None: #TODO: is there something to check for, other than just None?
             output += self.original_layer.bias
