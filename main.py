@@ -48,7 +48,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     if pruning_start_epoch >= num_epochs:
         pruning_start_epoch = num_epochs - 1
 
-    save_dir = f"bert-imdb-{max_length}/{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-start{pruning_start_epoch}-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}/"
+    save_dir = f"bert-{dataset}-{max_length}/{pruning_method}-{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-start{pruning_start_epoch}-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}/"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
