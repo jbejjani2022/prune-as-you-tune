@@ -30,7 +30,7 @@ class FineTuneEvaluator(ABC):
                  device,
                  save_dir : str,
                  pruning_args : dict,
-                 loss : dict,
+                 loss_args : dict,
                  eval_ppl : bool = True):
         
         # load tokenizer
@@ -57,8 +57,7 @@ class FineTuneEvaluator(ABC):
         self.lora_config = lora_config
         self.lora_config.target_modules = self.get_target_modules()
         self.pruning_args = pruning_args
-        self.loss = loss
-        #self.prune_only = prune_only
+        self.loss_args = loss_args
 
         self.save_dir = save_dir
         
@@ -86,7 +85,6 @@ class FineTuneEvaluator(ABC):
         return self.metric.compute(predictions=predictions, references=labels)
     
     # Returns a HF Trainer using `training_args` and callbacks, if any
-
     def get_trainer(self, model, logger_callback=None, pruning_callback=None):
         callbacks = []
         if logger_callback:
@@ -115,9 +113,8 @@ class FineTuneEvaluator(ABC):
         return KDTrainer(
             teacher_model=teacher,
             model=student,
-            alpha=self.loss['alpha'],
-            temp = self.loss['temp'],
-            lambda_lora=self.loss['lambda_lora'],
+            alpha=self.loss_args['alpha'],
+            temp = self.loss_args['temp'],
             args=self.training_args,
             train_dataset=self.train_dataset,
             eval_dataset=self.eval_dataset,
@@ -129,15 +126,12 @@ class FineTuneEvaluator(ABC):
     # Returns a callback that logs eval acc. and loss to `log_file` and saves model to `checkpoint_dir` after each epoch
     def get_logger(self, log_file, checkpoint_dir):
         return LoggerCallback(f'{self.save_dir}/{log_file}', f'{self.save_dir}/{checkpoint_dir}')
-
-
-    # TODO : use `prune` to generate
     
     # Returns a callback that prunes the pretrained weights of `model` by `ptg`% after each epoch
     def get_pruner(self, model, lora):
         return PruningCallback(model, lora, **self.pruning_args)
     
-    # Evaluates four fine-tuning methods on the model
+    # Evaluates all fine-tuning methods and variations on the model
     def full_eval_run(self):
         self.full_finetune()
         self.lora_finetune()
@@ -145,7 +139,7 @@ class FineTuneEvaluator(ABC):
         self.prune_lora_finetune()
         self.lora_prune_interleave()
         self.lora_prune_kd_interleave()
-        # self.lora_prune_kd_interleave_not_rs()
+        self.lora_prune_kd_interleave_not_rs()
     
     def evaluate(self, use_lora=True, use_kd=False, prune_interleave=True):
         logger = self.get_logger('custom_eval.csv', 'checkpoints/custom_eval')
@@ -216,9 +210,12 @@ class FineTuneEvaluator(ABC):
         model = copy.deepcopy(self.model)
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
-        pruner = self.get_pruner(model=model, lora=True)
-        # pruning step before fine-tuning begins
-        pruner.prune_pretrained(epoch=0)
+        
+        pruner = self.get_pruner(model, lora=True)
+        pruner.report_sparsity()
+        if self.pruning_args["pruning_start_epoch"] == 0:
+            pruner.prune_pretrained(epoch=0)
+        pruner.report_sparsity()
         
         logger = self.get_logger('lora_prune_interleave.csv', 'checkpoints/lora_prune_interleave')
         trainer = self.get_trainer(model, pruning_callback=pruner, logger_callback=logger)
@@ -235,10 +232,14 @@ class FineTuneEvaluator(ABC):
         frozen_model = copy.deepcopy(model)
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
-        pruner = self.get_pruner(model, lora=True)
-        pruner.prune_pretrained(epoch=0)
         
-        logger = self.get_logger('lora_prune_kd_interleave.csv', 'checkpoints/lore_prune_kd_interleave')
+        pruner = self.get_pruner(model, lora=True)
+        pruner.report_sparsity()
+        if self.pruning_args["pruning_start_epoch"] == 0:
+            pruner.prune_pretrained(epoch=0)
+        pruner.report_sparsity()
+        
+        logger = self.get_logger(f'lora_prune_kd_interleave.csv', f'checkpoints/lora_prune_kd_interleave')
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
@@ -253,10 +254,14 @@ class FineTuneEvaluator(ABC):
         self.lora_config.use_rslora = False
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
-        pruner = self.get_pruner(model, lora=True)
-        pruner.prune_pretrained(epoch=0)
         
-        logger = self.get_logger('lora_prune_kd_interleave_not_rs.csv', 'checkpoints/lore_prune_kd_interleave_not_rs')
+        pruner = self.get_pruner(model, lora=True)
+        pruner.report_sparsity()
+        if self.pruning_args["pruning_start_epoch"] == 0:
+            pruner.prune_pretrained(epoch=0)
+        pruner.report_sparsity()
+        
+        logger = self.get_logger('lora_prune_kd_interleave_not_rs.csv', 'checkpoints/lora_prune_kd_interleave_not_rs')
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
@@ -271,8 +276,8 @@ class FineTuneEvaluator(ABC):
         
         pruner = self.get_pruner(model, lora=False)
         pruner.report_sparsity()
-        print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
-        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        if self.pruning_args["pruning_start_epoch"] == 0:
+            pruner.prune_pretrained(epoch=0)
         pruner.report_sparsity()
         
         logger = self.get_logger('prune_full_finetune.csv', 'checkpoints/prune_full_finetune')
@@ -285,25 +290,28 @@ class FineTuneEvaluator(ABC):
     
     # Prunes model once then fine-tunes LoRA adapters
     def prune_lora_finetune(self):
-        print('\n********* PRUNE THEN (NOT RS) LoRA FINETUNE *********\n')
+        print('\n********* PRUNE THEN LoRA FINETUNE *********\n')
         model = copy.deepcopy(self.model)
         model = get_peft_model(model, self.lora_config)
         model.print_trainable_parameters()
         
         pruner = self.get_pruner(model, lora=True)
         pruner.report_sparsity()
-        print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
-        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        if self.pruning_args["pruning_start_epoch"] == 0:
+                pruner.prune_pretrained(epoch=0)
         pruner.report_sparsity()
         
         logger = self.get_logger('prune_lora_finetune.csv', 'checkpoints/prune_lora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
         pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
     
     # Prunes model once then fine-tunes LoRA adapters
     def prune_lora_finetune_not_rs(self):
-        print('\n********* PRUNE THEN LoRA FINETUNE *********\n')
+        print('\n********* PRUNE THEN (NOT RS) LoRA FINETUNE *********\n')
         model = copy.deepcopy(self.model)
         self.lora_config.use_rslora = False
 
@@ -312,13 +320,27 @@ class FineTuneEvaluator(ABC):
         
         pruner = self.get_pruner(model, lora=True)
         pruner.report_sparsity()
-        print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
-        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        if self.pruning_args["pruning_start_epoch"] == 0:
+            pruner.prune_pretrained(epoch=0)
         pruner.report_sparsity()
         
         logger = self.get_logger('prune_lora_finetune.csv', 'checkpoints/prune_lora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
+        pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
+            
+    def prune_no_finetune(self):
+        print('\n********* PRUNE, THEN GET PERPLEXITY *********\n')
+        model = copy.deepcopy(self.model)
+        
+        pruner = self.get_pruner(model, lora=False)
+        pruner.report_sparsity()
+        print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights")
+        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        pruner.report_sparsity()
         pruner.remove()
         
         if self.eval_ppl:
