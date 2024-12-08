@@ -344,6 +344,8 @@ class FineTuneEvaluator(ABC):
         #self.evaluation_hook(trainer)
         trainer.train()
         pruner.remove()
+
+        eval_results = trainer.evaluate()
         
         if self.eval_ppl:
             self.report_perplexity(model)
