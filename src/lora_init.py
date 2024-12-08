@@ -111,9 +111,9 @@ class CurloraLayer(nn.Module, LoraLayer):
     
 
     def forward(self, x):
-        if not self.training:  # During evaluation
-            print("Forward pass in eval mode")
-            print(f"Input shape: {x.shape}")
+        #if not self.training:  # During evaluation
+        #    print("Forward pass in eval mode")
+        #    print(f"Input shape: {x.shape}")
         device = x.device
         U = self.lora_U[f"lora_U_{self.adapter_name}"]
         #W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
@@ -122,15 +122,33 @@ class CurloraLayer(nn.Module, LoraLayer):
         #output given by W + delta_W
         output = x @ (self.original_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
 
-        if not self.training:
-            print(f"Output shape: {output.shape}")
+        #if not self.training:
+        #    print(f"Output shape: {output.shape}")
 
         if self.original_layer.bias is not None: #TODO: is there something to check for, other than just None?
             output += self.original_layer.bias
 
         return output
     
+    def merge(self):
+        # if alr merged, do nothing
+        if getattr(self, "merged", False):
+            return
+        # merge lora weights into original layer weights
+        U = self.lora_U[f"lora_U_{self.adapter_name}"]
+        W_adapted = self.C @ U @ self.R
+        self.original_layer.weight.data = self.original_layer.weight.data + W_adapted.data
+        self.merged = True
 
+    def merge_and_unload(self):
+        # first merge (if not alr done)
+        self.merge()
+        # remove lora params (bc they've been merged into model)
+        del self.lora_U
+        del self.C
+        del self.R
+
+    
 
 ### deprecated ###
 
