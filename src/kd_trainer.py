@@ -32,4 +32,3 @@ class KDTrainer(Trainer):
         loss = self.alpha * student_loss + (1 - self.alpha) * kd_loss
 
         return (loss, student_output) if return_outputs else loss
-    

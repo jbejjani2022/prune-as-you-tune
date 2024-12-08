@@ -102,12 +102,14 @@ class FineTuneEvaluator(ABC):
         )
 
     # Returns a custom Knowledge-Distillation Trainer
-    def get_kd_trainer(self, student, teacher, logger_callback=None, pruning_callback=None):
+    def get_kd_trainer(self, student, teacher, temp, logger_callback=None, pruning_callback=None):
         callbacks = []
         if logger_callback:
             callbacks.append(logger_callback)
         if pruning_callback:
             callbacks.append(pruning_callback)
+        
+        print(f'KD TEMPERATURE = {temp}')
         
         return KDTrainer(
             teacher_model=teacher,
@@ -221,7 +223,10 @@ class FineTuneEvaluator(ABC):
             self.report_perplexity(model)
     
     # Same as lora_prune_finetune but fine-tunes using KD loss via frozen teacher model
-    def lora_prune_kd_interleave(self):
+    def lora_prune_kd_interleave(self, temp=None):
+        if temp is None:
+            temp = self.temp
+            
         print('\n********* LORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
         model = copy.deepcopy(self.model)
         frozen_model = copy.deepcopy(model)
@@ -234,8 +239,8 @@ class FineTuneEvaluator(ABC):
             pruner.prune_pretrained(epoch=0)
         pruner.report_sparsity()
         
-        logger = self.get_logger('lora_prune_kd_interleave.csv', 'checkpoints/lore_prune_kd_interleave')
-        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
+        logger = self.get_logger(f'lora_prune_kd_interleave_temp{temp}.csv', f'checkpoints/lora_prune_kd_interleave_temp{temp}')
+        trainer = self.get_kd_trainer(model, frozen_model, temp, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
         
@@ -256,7 +261,7 @@ class FineTuneEvaluator(ABC):
             pruner.prune_pretrained(epoch=0)
         pruner.report_sparsity()
         
-        logger = self.get_logger('lora_prune_kd_interleave_not_rs.csv', 'checkpoints/lore_prune_kd_interleave_not_rs')
+        logger = self.get_logger('lora_prune_kd_interleave_not_rs.csv', 'checkpoints/lora_prune_kd_interleave_not_rs')
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
@@ -322,6 +327,20 @@ class FineTuneEvaluator(ABC):
         logger = self.get_logger('prune_lora_finetune.csv', 'checkpoints/prune_lora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
         trainer.train()
+        pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
+            
+    def prune_no_finetune(self):
+        print('\n********* PRUNE, THEN GET PERPLEXITY *********\n')
+        model = copy.deepcopy(self.model)
+        
+        pruner = self.get_pruner(model, lora=False)
+        pruner.report_sparsity()
+        print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights")
+        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        pruner.report_sparsity()
         pruner.remove()
         
         if self.eval_ppl:
