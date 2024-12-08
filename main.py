@@ -13,7 +13,6 @@ os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
 
 @app.command()
 def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
-          ptg : Annotated[Optional[float], typer.Option(help="Percentage of parameters to prune per pruning call")] = 0.05,
           sparsity_target: Annotated[Optional[float], typer.Option(help="Target percentage of parameters to prune")] = 0.5,
           num_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 5,
           output_dir : Annotated[Optional[str], typer.Option(help="Output directory for logs and model checkpoints")] = "logs",
@@ -31,9 +30,8 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
           pruning_schedule : Annotated[Optional[str], typer.Option(help="Pruning schedule - can be agp or linear")] = "linear",
           prune_every_epoch : Annotated[Optional[int], typer.Option(help="Prune at every n epoch")] = 1,
           start_pruning_epoch_ptg : Annotated[Optional[float], typer.Option(help="Start pruning at n percent epoch of training - will be rounded down")] = 0,
-          structured_pruning : Annotated[Optional[bool], typer.Option(help="Structured pruning")] = False):
+          pruning_method : Annotated[Optional[str], typer.Option(help="Pruning method - can be L1Unstructured or L2Structured")] = "L1Unstructured"):
     
-    pruning_method = "L1Unstructured"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -85,8 +83,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
                     "num_epochs" : num_epochs, 
                     "schedule" : pruning_schedule,
                     "prune_every_epoch" : prune_every_epoch,
-                    "pruning_start_epoch" : pruning_start_epoch,
-                    "structured" : structured_pruning}
+                    "pruning_start_epoch" : pruning_start_epoch}
 
     loss_args = {"alpha": kd_alpha, 
                  "temp": kd_temp, 
