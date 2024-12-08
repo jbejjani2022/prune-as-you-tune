@@ -122,7 +122,7 @@ class PruningCallback(TrainerCallback):
                 self.params,
                 pruning_method=self.method,
                 amount=epoch_ptg,  # percentage of REMAINING (non-pruned) params to prune
-                n=1,
+                n=2,  # prunes channels based on L2 norm
                 dim=0,
             )
         else:
