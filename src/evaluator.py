@@ -19,7 +19,9 @@ from src.perplexity import PPL
 
 from src.lora_init import CustomLoraConfig, CurloraLayer#, get_peft_model_with_curlora
 
+import torch
 from torch import nn
+from torch.utils.data import DataLoader
 
 class FineTuneEvaluator(ABC):
     
@@ -338,6 +340,11 @@ class FineTuneEvaluator(ABC):
         #print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
         pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
         pruner.report_sparsity()
+
+        batch = next(iter(DataLoader(self.eval_dataset, batch_size=2, collate_fn=self.data_collator)))
+        with torch.no_grad():
+            outputs = self.model(**{k: v.to(self.model.device) for k,v in batch.items()})
+        print(outputs)  # Check if you get loss and logits here
         
         logger = self.get_logger('prune_curlora_finetune.csv', 'checkpoints/prune_curlora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
@@ -346,6 +353,7 @@ class FineTuneEvaluator(ABC):
         pruner.remove()
 
         eval_results = trainer.evaluate()
+        print(eval_results)
         
         if self.eval_ppl:
             self.report_perplexity(model)
