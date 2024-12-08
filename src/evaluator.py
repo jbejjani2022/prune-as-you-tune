@@ -368,6 +368,8 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
         trainer.train()
         pruner.remove()
+
+        eval_results = trainer.evaluate()
         
         if self.eval_ppl:
             self.report_perplexity(model)
