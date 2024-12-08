@@ -100,9 +100,30 @@ class FineTuneEvaluator(ABC):
             return self.tokenizer(examples["text"], padding="max_length", truncation=True, max_length=self.max_length)
     
     def compute_metrics(self, eval_preds):
+        print("compute metrics called!")
         logits, labels = eval_preds
-        predictions = np.argmax(logits, axis=-1)   # For classification tasks
-        return self.metric.compute(predictions=predictions, references=labels)
+        predictions = np.argmax(logits, axis=-1)
+        
+        # Print shapes and content for debugging
+        print(f"Predictions shape: {predictions.shape}")
+        print(f"Labels shape: {labels.shape}")
+        print(f"Sample predictions: {predictions[:5]}")
+        print(f"Sample labels: {labels[:5]}")
+        
+        results = self.metric.compute(predictions=predictions, references=labels)
+        print(f"Metric results: {results}")  # See what the metric is returning
+        
+        # Ensure we return a dict with the expected keys
+        if isinstance(results, dict):
+            # If accuracy isn't in the results, you might need to add it
+            if 'accuracy' not in results:
+                results['accuracy'] = results.get(next(iter(results)))
+        else:
+            # If results is not a dict, wrap it
+            results = {'accuracy': float(results)}
+        
+        print(f"Final metrics: {results}")
+        return results
     
     # Returns a HF Trainer using `training_args` and callbacks, if any
     def get_trainer(self, model, logger_callback=None, pruning_callback=None):

@@ -76,7 +76,7 @@ pissalora_config = LoraConfig(
     init_lora_weights='pissa'
 )
 
-evaluator = BertBaseFineTuneEvaluator( #DistilBertFineTuneEvaluator(
+evaluator = DistilBertFineTuneEvaluator(
     dataset=dataset,
     training_args=training_args,
     max_length=None,  # set max_length = None if you don't want to truncate samples
@@ -87,8 +87,8 @@ evaluator = BertBaseFineTuneEvaluator( #DistilBertFineTuneEvaluator(
     temp=2,
     device=device,
     save_dir=save_dir,
-    eval_ppl=False # evaluate perplexity on orig task after each finetuning
-    #num_samples = 5000
+    eval_ppl=False, # evaluate perplexity on orig task after each finetuning
+    num_samples = 5000
 )
 
 #evaluator.prune_lora_finetune()
@@ -98,7 +98,7 @@ evaluator = BertBaseFineTuneEvaluator( #DistilBertFineTuneEvaluator(
 
 if __name__ == '__main__':  
     evaluator.prune_curlora_finetune(training_args.device)
-    evaluator.curlora_prune_kd_interleave(training_args.device)
+    #evaluator.curlora_prune_kd_interleave(training_args.device)
 
 """
 evaluator.prune_lora_finetune(), setup output:

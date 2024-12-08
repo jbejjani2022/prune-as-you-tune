@@ -17,6 +17,9 @@ class CustomLoraConfig(LoraConfig):
         #print(f'kwargs customloraconfig: {self.device}')
 
 
+# TODO: NEED TO WRITE THE MERGE, AND MERGE_AND_UNLOAD FUNCTIONS!
+
+
 #NOTE: horrendous -- When loading the model, you have to register the custom modules again
 class CurloraLayer(nn.Module, LoraLayer):
     #def __init__(self, original_layer, config: CustomLoraConfig, device):
@@ -106,9 +109,6 @@ class CurloraLayer(nn.Module, LoraLayer):
     
         return C, R
     
-    """
-    Do I need a hook?
-    """
 
     def forward(self, x):
         #W_adapted = C * U * R
@@ -118,12 +118,13 @@ class CurloraLayer(nn.Module, LoraLayer):
         #print(f"R device: {self.R.device}")
         device = x.device
         U = self.lora_U[f"lora_U_{self.adapter_name}"]
-        W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
+        #W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
+        W_adapted = self.C @ U @ self.R
 
         #output given by W + delta_W
         output = x @ (self.original_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
 
-        if self.original_layer.bias is not None: #TODO: ask teammates to verify this
+        if self.original_layer.bias is not None: #TODO: is there something to check for, other than just None?
             output += self.original_layer.bias
 
         return output
