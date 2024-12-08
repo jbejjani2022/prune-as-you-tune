@@ -183,14 +183,14 @@ class FineTuneEvaluator(ABC):
         self.lora_prune_kd_interleave()
         # self.lora_prune_kd_interleave_not_rs()
 
-    def evaluation_hook(self, eval_dataloader):
+    """def evaluation_hook(self, eval_dataloader):
         batch = next(iter(eval_dataloader))
         model = copy.deepcopy(self.model)
         outputs = model(batch['input_ids'])
         print("Model evaluation output type:", type(outputs))
         print("Model evaluation output shape:", outputs.shape if hasattr(outputs, 'shape') else "No shape")
         if hasattr(outputs, 'logits'):
-            print("Has logits attribute")
+            print("Has logits attribute")"""
     
     # Fine-tunes all model weights
     def full_finetune(self):
@@ -341,7 +341,7 @@ class FineTuneEvaluator(ABC):
         
         logger = self.get_logger('prune_curlora_finetune.csv', 'checkpoints/prune_curlora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
-        self.evaluation_hook(trainer)
+        #self.evaluation_hook(trainer)
         trainer.train()
         pruner.remove()
         
