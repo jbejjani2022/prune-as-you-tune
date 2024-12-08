@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 class KDTrainer(Trainer):
     
-    def __init__(self, teacher_model, alpha=0.8, temp=2, **kwargs):
+    def __init__(self, teacher_model, lambda_lora=0, alpha=0.8, temp=2, **kwargs):
         super().__init__(**kwargs)
         self.teacher_model = teacher_model.eval()
         self.teacher_model.to(self.model.device)
