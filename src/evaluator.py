@@ -39,6 +39,7 @@ class FineTuneEvaluator(ABC):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         # load and tokenize the dataset
         self.dataset = load_dataset(dataset).map(self.tokenize, batched=True)
+        # TODO
         self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(n_samples))
         self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(n_samples))
         print(f'{self.train_dataset.num_rows} training samples')
@@ -57,6 +58,7 @@ class FineTuneEvaluator(ABC):
         self.lora_config.target_modules = self.get_target_modules()
         self.pruning_args = pruning_args
         self.loss = loss
+        #self.prune_only = prune_only
 
         self.save_dir = save_dir
         
@@ -91,7 +93,7 @@ class FineTuneEvaluator(ABC):
             callbacks.append(logger_callback)
         if pruning_callback:
             callbacks.append(pruning_callback)
-            
+        
         return Trainer(
             model=model,
             args=self.training_args,
@@ -151,6 +153,11 @@ class FineTuneEvaluator(ABC):
         pruner = None
         print(self.pruning_args)
         
+        """if self.prune_only:
+            pruner = self.get_pruner(model=model, lora=False)
+            use_lora = False
+            # use_kd = False - AG 2024-12-02 I personally feel that KD would be ~meaningless, but maybe not? 
+        """
         if use_lora:
             model = get_peft_model(model, self.lora_config)
             model.print_trainable_parameters()
