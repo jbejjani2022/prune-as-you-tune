@@ -21,7 +21,8 @@ class PruningCallback(TrainerCallback):
                  num_epochs, 
                  schedule : str,
                  prune_every_epoch : int,
-                 pruning_start_epoch : int):
+                 pruning_start_epoch : int,
+                 structured: bool = True):
         self.model = model
         self.num_epochs = num_epochs
         self.sparsity_target = sparsity_target
@@ -39,6 +40,7 @@ class PruningCallback(TrainerCallback):
 
         num_pruning_steps = math.ceil((num_epochs - pruning_start_epoch) / prune_every_epoch)  # how many times will we have a non-zero prune ptg
         self.schedule = np.zeros(num_epochs)
+        self.structured = structured
 
         if schedule == "linear":
             # Linear schedule: increase sparsity by a fixed percentage each epoch
@@ -115,12 +117,20 @@ class PruningCallback(TrainerCallback):
             epoch_ptg = self.schedule[epoch]
         
         print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights before epoch {epoch + 1}, increasing sparsity of pretrained weights by {self.schedule[epoch] * 100:.2f}%")
-
-        prune.global_unstructured(
-            self.params,
-            pruning_method=self.method,
-            amount=epoch_ptg,  # percentage of REMAINING (non-pruned) params to prune
-        )
+        if self.structured:
+            prune.ln_structured(
+                self.params,
+                pruning_method=self.method,
+                amount=epoch_ptg,  # percentage of REMAINING (non-pruned) params to prune
+                n=1,
+                dim=0,
+            )
+        else:
+            prune.global_unstructured(
+                self.params,
+                pruning_method=self.method,
+                amount=epoch_ptg,  # percentage of REMAINING (non-pruned) params to prune
+            )
         
     # Reports sparsity of pruning-eligible params, as well as overall model sparsity
     def report_sparsity(self):
