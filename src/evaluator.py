@@ -54,7 +54,7 @@ class FineTuneEvaluator(ABC):
             self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(num_samples))
         else:
             self.train_dataset = self.dataset["train"].shuffle(seed=42)
-            self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(num_samples))
+            self.eval_dataset = self.dataset["test"].shuffle(seed=42)
 
 
         print(f'{self.train_dataset.num_rows} training samples')
