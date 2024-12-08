@@ -183,8 +183,9 @@ class FineTuneEvaluator(ABC):
         self.lora_prune_kd_interleave()
         # self.lora_prune_kd_interleave_not_rs()
 
-    def evaluation_hook(eval_dataloader):
+    def evaluation_hook(self, eval_dataloader):
         batch = next(iter(eval_dataloader))
+        model = copy.deepcopy(self.model)
         outputs = model(batch['input_ids'])
         print("Model evaluation output type:", type(outputs))
         print("Model evaluation output shape:", outputs.shape if hasattr(outputs, 'shape') else "No shape")
