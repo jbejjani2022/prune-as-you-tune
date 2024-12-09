@@ -4,7 +4,9 @@ from peft import get_peft_model
 import torch
 import torch.nn as nn
 
-from peft.tuners.lora.layer import LoraLayer
+from peft.tuners.lora.layer import LoraLayer, BaseTunerLayer
+
+from typing import Optional
 
 class CustomLoraConfig(LoraConfig):
 
@@ -17,11 +19,137 @@ class CustomLoraConfig(LoraConfig):
         #print(f'kwargs customloraconfig: {self.device}')
 
 
-# TODO: check LoRALayer attribute names!
+class CurloraLayer(BaseTunerLayer):
+    """
+    A custom LoRA-like layer that has only one trainable parameter U.
+    This is a template class that you can fill in with your desired forward pass logic.
+    """
 
+    def __init__(self, base_layer: nn.Module, ephemeral_gpu_offload: bool = False, **kwargs) -> None:
+        super().__init__()
+        self.base_layer = base_layer
+        self._disable_adapters = False
+        self.merged_adapters = []
+        #self.use_dora: dict[str, bool] = {}
+        #self.lora_bias: dict[str, bool] = {}
+        #self.lora_magnitude_vector = nn.ModuleDict()  # if needed for advanced functionality
+        #self._caches: dict[str, Any] = {}
+        self.ephemeral_gpu_offload: bool = ephemeral_gpu_offload
+        self.kwargs = kwargs
+
+        r = kwargs.get("r", 32)
+        sm = kwargs.get('sampling_method', 'inverted_probs')
+
+        self.U = nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
+        #nn.init.kaiming_uniform_(self.U, a=math.sqrt(5))
+
+        self.base_layer.weight.requires_grad = False
+        if self.base_layer.bias is not None:
+            self.base_layer.bias.requires_grad = False
+
+        W = base_layer.weight.data
+        #default sampling method is inverted probabilities (ie, prioritize rows and columns with lowest values)
+        #self.C, self.R = self.compute_C_and_R(W, lora_config.r, lora_config.sampling_method)
+        #print(f"from curloralayer init: {kwargs.get('r', -1)}")
+        
+        self.C, self.R = self.compute_C_and_R(W, r, sm)
+        #freeze C, R (we will only update U)
+        self.C.requires_grad = False
+        self.R.requires_grad = False
+
+        self.adapter_name = "curlora"
+
+    @property
+    def disable_adapters(self) -> bool:
+        return self._disable_adapters
+
+    def set_adapter(self, adapter_names):
+        self._active_adapter = ['curlora']
+
+    def merge(self, safe_merge: bool = False, adapter_names: Optional[list[str]] = None) -> None:
+        if getattr(self, "merged", False):
+            return
+        # merge lora weights into original layer weights
+        #U = self.lora_U[f"lora_U_{self.adapter_name}"]
+        W_adapted = self.C @ self.U @ self.R
+        self.original_layer.weight.data = self.original_layer.weight.data + W_adapted.data
+        self.merged = True
+
+    #def unmerge(self) -> None:
+        # Implement the logic to undo merging if applicable.
+    #    pass
+
+    #def scale_layer(self, scale: float) -> None:
+    #    pass
+
+    #def unscale_layer(self, scale=None) -> None:
+    #    pass
+
+    def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+        #if not self.training:  # During evaluation
+        #    print("Forward pass in eval mode")
+        #    print(f"Input shape: {x.shape}")
+        device = x.device
+        #U = self.lora_U[f"lora_U_{self.adapter_name}"]
+        W_adapted = self.C.to(device) @ self.U.to(device) @ self.R.to(device)
+        #W_adapted = self.C @ U @ self.R
+
+        #output given by W + delta_W
+        output = x @ (self.original_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
+
+        #if not self.training:
+        #    print(f"Output shape: {output.shape}")
+
+        if self.original_layer.bias is not None: #TODO: is there something to check for, other than just None?
+            output += self.original_layer.bias
+
+        assert W_adapted.shape == self.original_layer.weight.shape, (
+            f"W_adapted shape {W_adapted.shape} does not match "
+            f"original layer weight shape {self.original_layer.weight.shape}"
+        )
+
+        return output
+    
+        #assuming sampling method = inverted probabilities 
+    def compute_C_and_R(self, W, rank, sampling_method): 
+        #device = W.device
+        num_rows, num_cols = W.size()
+        #adjust rank if needed
+        rank = min(rank, num_rows, num_cols)
+        #print(f"desired rank: {rank}, num_rows: {num_rows}, num_cols: {num_cols}")
+
+        total_norm = torch.norm(W) ** 2  #scalar
+
+        #col norm and probs
+        col_norms = torch.norm(W, dim=0) ** 2  #shape: [n]
+        col_probs = col_norms / total_norm  #shape: [n]
+        #invert col probs
+        inv_col_probs = 1 / col_probs
+        inv_col_probs /= inv_col_probs.sum() #normalize
+
+        #row norms and probs (chatgpt corrected)
+        row_norms = torch.norm(W, dim=1) ** 2  #shape: [m]
+        row_probs = row_norms / total_norm  #shape: [m]
+        #inver row probs
+        inv_row_probs = 1 / row_probs
+        inv_row_probs /= inv_row_probs.sum() #normalize
+
+        #sample (based on inverted probabilities => lowest probabilities prioritized)
+        col_indices = torch.multinomial(inv_col_probs, rank, replacement=False)
+        row_indices = torch.multinomial(inv_row_probs, rank, replacement=False)
+
+        C = W[:, col_indices]
+        R = W[row_indices, :]
+
+        #C = W[:, col_indices].clone()
+        #R = W[row_indices, :].clone()
+    
+        return C, R
+
+### deprecated ###
 
 #NOTE: horrendous -- When loading the model, you have to register the custom modules again
-class CurloraLayer(nn.Module, LoraLayer):
+class CurloraLayerOld(nn.Module, LoraLayer):
     #def __init__(self, original_layer, config: CustomLoraConfig, device):
     def __init__(self, original_layer, adapter_name, **kwargs):
         nn.Module.__init__(self)
@@ -142,7 +270,6 @@ class CurloraLayer(nn.Module, LoraLayer):
         del self.C
         del self.R
 
-### deprecated ###
 
 def get_peft_model_with_curlora(model, peft_config, device):
     if isinstance(peft_config, CustomLoraConfig):

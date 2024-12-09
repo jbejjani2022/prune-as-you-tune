@@ -318,14 +318,14 @@ class FineTuneEvaluator(ABC):
         print('\n********* PRUNE THEN CURLoRA FINETUNE *********\n')
         model = copy.deepcopy(self.model)
 
-        #custom_module_mapping = {nn.Linear: CurloraLayer}
-        #self.lora_config._register_custom_module(custom_module_mapping)
+        custom_module_mapping = {nn.Linear: CurloraLayer}
+        self.lora_config._register_custom_module(custom_module_mapping)
 
         #print(f"from prune_curlora_finetune: self.lora_config.r: {self.lora_config.r}")
 
         #get model with CustomLora integration
-        model = get_peft_model_with_curlora(model, self.lora_config, device)
-        #model = get_peft_model(model, self.lora_config)
+        #model = get_peft_model_with_curlora(model, self.lora_config, device)
+        model = get_peft_model(model, self.lora_config)
         #model.to(device) #new addition!
 
         # After applying custom_module_mapping and get_peft_model
