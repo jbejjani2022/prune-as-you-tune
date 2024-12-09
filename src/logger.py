@@ -34,7 +34,7 @@ class LoggerCallback(TrainerCallback):
     def on_epoch_end(self, args, state, control, **kwargs):
         # Get the trainer instance from kwargs
         trainer = kwargs.get('trainer')
-        print(**kwargs)
+        #print(f' Kwargs: {kwargs}')
         """"if trainer is not None:
             # Run evaluation
             metrics = trainer.evaluate()

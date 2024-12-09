@@ -19,14 +19,16 @@ class CustomLoraConfig(LoraConfig):
         #print(f'kwargs customloraconfig: {self.device}')
 
 
-class CurloraLayer(BaseTunerLayer):
+class CurloraLayer(torch.nn.Module, BaseTunerLayer):
     """
     A custom LoRA-like layer that has only one trainable parameter U.
     This is a template class that you can fill in with your desired forward pass logic.
     """
 
-    def __init__(self, base_layer: nn.Module, ephemeral_gpu_offload: bool = False, **kwargs) -> None:
-        super().__init__()
+    def __init__(self, base_layer: nn.Module, adapter_name, **kwargs) -> None:
+        super().__init__()        
+        LoraLayer.__init__(self, base_layer)
+
         self.base_layer = base_layer
         self._disable_adapters = False
         self.merged_adapters = []
@@ -34,14 +36,11 @@ class CurloraLayer(BaseTunerLayer):
         #self.lora_bias: dict[str, bool] = {}
         #self.lora_magnitude_vector = nn.ModuleDict()  # if needed for advanced functionality
         #self._caches: dict[str, Any] = {}
-        self.ephemeral_gpu_offload: bool = ephemeral_gpu_offload
+        self.ephemeral_gpu_offload = kwargs.get("ephemeral_gpu_offload", False)
         self.kwargs = kwargs
 
         r = kwargs.get("r", 32)
         sm = kwargs.get('sampling_method', 'inverted_probs')
-
-        self.U = nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
-        #nn.init.kaiming_uniform_(self.U, a=math.sqrt(5))
 
         self.base_layer.weight.requires_grad = False
         if self.base_layer.bias is not None:
@@ -57,22 +56,27 @@ class CurloraLayer(BaseTunerLayer):
         self.C.requires_grad = False
         self.R.requires_grad = False
 
-        self.adapter_name = "curlora"
+        #self.U = nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
+        self.lora_U = nn.ParameterDict({
+            "lora_U": nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
+        })
+
+        self.adapter_name = adapter_name #"curlora"
 
     @property
     def disable_adapters(self) -> bool:
         return self._disable_adapters
 
     def set_adapter(self, adapter_names):
-        self._active_adapter = ['curlora']
+        self._active_adapter = [adapter_names] #['curlora']
 
     def merge(self, safe_merge: bool = False, adapter_names: Optional[list[str]] = None) -> None:
         if getattr(self, "merged", False):
             return
         # merge lora weights into original layer weights
-        #U = self.lora_U[f"lora_U_{self.adapter_name}"]
-        W_adapted = self.C @ self.U @ self.R
-        self.original_layer.weight.data = self.original_layer.weight.data + W_adapted.data
+        U = self.lora_U["lora_U"]
+        W_adapted = self.C @ U @ self.R
+        self.base_layer.weight.data = self.base_layer.weight.data + W_adapted.data
         self.merged = True
 
     #def unmerge(self) -> None:
@@ -90,22 +94,22 @@ class CurloraLayer(BaseTunerLayer):
         #    print("Forward pass in eval mode")
         #    print(f"Input shape: {x.shape}")
         device = x.device
-        #U = self.lora_U[f"lora_U_{self.adapter_name}"]
-        W_adapted = self.C.to(device) @ self.U.to(device) @ self.R.to(device)
+        U = self.lora_U["lora_U"]
+        W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
         #W_adapted = self.C @ U @ self.R
 
         #output given by W + delta_W
-        output = x @ (self.original_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
+        output = x @ (self.base_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
 
         #if not self.training:
         #    print(f"Output shape: {output.shape}")
 
-        if self.original_layer.bias is not None: #TODO: is there something to check for, other than just None?
-            output += self.original_layer.bias
+        if self.base_layer.bias is not None: #TODO: is there something to check for, other than just None?
+            output += self.base_layer.bias
 
-        assert W_adapted.shape == self.original_layer.weight.shape, (
+        assert W_adapted.shape == self.base_layer.weight.shape, (
             f"W_adapted shape {W_adapted.shape} does not match "
-            f"original layer weight shape {self.original_layer.weight.shape}"
+            f"original layer weight shape {self.base_layer.weight.shape}"
         )
 
         return output
@@ -145,6 +149,7 @@ class CurloraLayer(BaseTunerLayer):
         #R = W[row_indices, :].clone()
     
         return C, R
+
 
 ### deprecated ###
 
@@ -287,6 +292,6 @@ def replace_modules(model, peft_config, device):
             print(f"Found linear layer: {name}")
             #device = next(module.parameters()).device
             #print(f"replace_modules device: {device}")
-            model._modules[name] = CurloraLayer(module, 1) #, peft_config, device) #TODO: uncomment to use function!
+            model._modules[name] = CurloraLayer(module, "curlora") #, peft_config, device) #TODO: uncomment to use function!
         else:
             replace_modules(module, peft_config, device)
