@@ -55,16 +55,16 @@ curlora_config = CustomLoraConfig(
     r=64,                # Rank of LoRA
     lora_alpha=32,       # Scaling factor
     lora_dropout=0.1,     # Dropout rate
-    sampling_method='inverted_probs',
-    target_modules=["query", "key"]
+    sampling_method='inverted_probs'
+    #target_modules=["query", "key"]
     #target_modules=['all-linear']
     #inference_mode=False
     #target_modules=['attn'],
 )
 
 # def mapping from base layers --> CuRLoRA layers
-custom_module_mapping = {nn.Linear: CurloraLayer}
-curlora_config._register_custom_module(custom_module_mapping)
+#custom_module_mapping = {nn.Linear: CurloraLayer}
+#curlora_config._register_custom_module(custom_module_mapping)
 
 #svd based decomposition (as opposed to default, which I believe is gauss for rslora, though TODO verify this before running pissa experiments)
 #btw: not attached to this particular svd based decomposition, tho I do think we should test one arbitrarily chosen svd approach

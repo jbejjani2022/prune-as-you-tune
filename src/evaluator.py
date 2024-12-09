@@ -17,7 +17,7 @@ from src.logger import LoggerCallback
 from src.pruner import PruningCallback
 from src.perplexity import PPL
 
-from src.lora_init import CustomLoraConfig, CurloraLayer#, get_peft_model_with_curlora
+from src.lora_init import CustomLoraConfig, CurloraLayer, get_peft_model_with_curlora
 
 import torch
 from torch import nn
@@ -324,9 +324,9 @@ class FineTuneEvaluator(ABC):
         #print(f"from prune_curlora_finetune: self.lora_config.r: {self.lora_config.r}")
 
         #get model with CustomLora integration
-        #model = get_peft_model_with_curlora(model, self.lora_config, device) #assume CustomLoraConfig passed, not LoraConfig
+        model = get_peft_model_with_curlora(model, self.lora_config, device)
         model = get_peft_model(model, self.lora_config)
-        model.to(device) #new addition!
+        #model.to(device) #new addition!
 
         # After applying custom_module_mapping and get_peft_model
         for name, module in model.named_modules():

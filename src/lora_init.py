@@ -172,9 +172,9 @@ def replace_modules(model, peft_config, device):
         if module is None:
             continue
         if isinstance(module, nn.Linear):
-            #print("replaced linear layer with lora layer")
+            print(f"Found linear layer: {name}")
             #device = next(module.parameters()).device
             #print(f"replace_modules device: {device}")
-            model._modules[name] = CurloraLayer(module, peft_config, device)
+            #model._modules[name] = CurloraLayer(module, peft_config, device) #TODO: uncomment to use function!
         else:
             replace_modules(module, peft_config, device)
