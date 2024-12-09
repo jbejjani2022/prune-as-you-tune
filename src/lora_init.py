@@ -124,7 +124,8 @@ class CurloraLayer(nn.Module, LycorisLayer):
         self.R[adapter_name] = R
         self.lora_U[adapter_name] = U"""
 
-        self.lora_U[adapter_name].requires_grad = True
+        #self.lora_U[adapter_name].requires_grad = True
+        self.lora_U[adapter_name] = nn.Parameter(torch.zeros(self.C[adapter_name].size(1), self.R[adapter_name].size(0)), requires_grad=True)
 
         self.r[adapter_name] = r
         self.alpha[adapter_name] = alpha
