@@ -22,7 +22,7 @@ class CustomLoraConfig(LycorisConfig): #(LoraConfig):
     def __init__(self, **kwargs):
         super().__init__()
 
-        self.r = kwargs.get('r', self.r) #for some reason, this is necessary
+        self.r = kwargs.get('r', 64) #kwargs.get('r', self.r)
         self.sampling_method = kwargs.get('sampling_method', 'inverted_probs')
         #self.device = kwargs.get('device')
         #print(f'kwargs customloraconfig: {self.device}')
