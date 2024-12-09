@@ -27,7 +27,7 @@ class CurloraLayer(torch.nn.Module, BaseTunerLayer):
 
     def __init__(self, base_layer: nn.Module, adapter_name, **kwargs) -> None:
         super().__init__()        
-        LoraLayer.__init__(self, base_layer)
+        BaseTunerLayer.__init__(self)#, base_layer)
 
         self.base_layer = base_layer
         self._disable_adapters = False
