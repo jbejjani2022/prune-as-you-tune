@@ -116,8 +116,8 @@ class CurloraLayer(nn.Module, LoraLayer):
         #    print(f"Input shape: {x.shape}")
         device = x.device
         U = self.lora_U[f"lora_U_{self.adapter_name}"]
-        #W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
-        W_adapted = self.C @ U @ self.R
+        W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
+        #W_adapted = self.C @ U @ self.R
 
         #output given by W + delta_W
         output = x @ (self.original_layer.weight.to(device) + W_adapted).t() #TODO: .to(device) manually is not good
@@ -128,9 +128,15 @@ class CurloraLayer(nn.Module, LoraLayer):
         if self.original_layer.bias is not None: #TODO: is there something to check for, other than just None?
             output += self.original_layer.bias
 
+        assert W_adapted.shape == self.original_layer.weight.shape, (
+            f"W_adapted shape {W_adapted.shape} does not match "
+            f"original layer weight shape {self.original_layer.weight.shape}"
+        )
+
         return output
     
     def merge(self):
+        print("merge called")
         # if alr merged, do nothing
         if getattr(self, "merged", False):
             return
@@ -141,6 +147,7 @@ class CurloraLayer(nn.Module, LoraLayer):
         self.merged = True
 
     def merge_and_unload(self):
+        print("merge and unload called")
         # first merge (if not alr done)
         self.merge()
         # remove lora params (bc they've been merged into model)
