@@ -50,12 +50,28 @@ class CurloraLayer(nn.Module, LycorisLayer):
         self.kwargs = kwargs
 
         # Dictionaries to store adapter-specific parameters
-        self.lora_U = nn.ParameterDict({
+        """self.lora_U = nn.ParameterDict({
             adapter_name : nn.Parameter(torch.zeros(1, 1), requires_grad=True)
-        })
+        })"""
         self.C = {}
         self.R = {}
 
+        #breaking from function template:
+        W = self.base_layer.weight.data
+        C, R = self.compute_C_and_R(W, 32, "inverted_probs") #NOTE: hardcoded r = 32
+        # C and R are not trainable, only U is trainable
+        C.requires_grad = False
+        R.requires_grad = False
+
+        # Store parameters
+        self.C[adapter_name] = C
+        self.R[adapter_name] = R
+        #self.lora_U[adapter_name] = U
+        self.lora_U = nn.ParameterDict({
+            adapter_name : nn.Parameter(C.size(1), R.size(0), requires_grad=True)
+        })
+
+        #resuming function template
         self.r = {}
         self.alpha = {}
         self.scaling = {}
@@ -94,7 +110,7 @@ class CurloraLayer(nn.Module, LycorisLayer):
         sampling_method = kwargs.get('sampling_method', 'inverted_probs')
         alpha = kwargs.get('alpha', r)  # default alpha=r if not provided
 
-        W = self.base_layer.weight.data
+        """W = self.base_layer.weight.data
         C, R = self.compute_C_and_R(W, r, sampling_method)
         # C and R are not trainable, only U is trainable
         C.requires_grad = False
@@ -106,7 +122,7 @@ class CurloraLayer(nn.Module, LycorisLayer):
         # Store parameters
         self.C[adapter_name] = C
         self.R[adapter_name] = R
-        self.lora_U[adapter_name] = U
+        self.lora_U[adapter_name] = U"""
 
         self.r[adapter_name] = r
         self.alpha[adapter_name] = alpha
