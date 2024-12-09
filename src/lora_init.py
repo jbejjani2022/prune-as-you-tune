@@ -50,9 +50,6 @@ class CurloraLayer(nn.Module, LycorisLayer):
         self.kwargs = kwargs
 
         # Dictionaries to store adapter-specific parameters
-        """self.lora_U = nn.ParameterDict({
-            adapter_name : nn.Parameter(torch.zeros(1, 1), requires_grad=True)
-        })"""
         self.C = {}
         self.R = {}
 
@@ -145,9 +142,9 @@ class CurloraLayer(nn.Module, LycorisLayer):
             return torch.zeros_like(x)
 
         device = x.device
-        U = self.lora_U[adapter_name].to(device)
-        C = self.C[adapter_name].to(device)
-        R = self.R[adapter_name].to(device)
+        U = self.lora_U[adapter_name]#.to(device)
+        C = self.C[adapter_name]#.to(device)
+        R = self.R[adapter_name]#.to(device)
 
         W_adapted = C @ U @ R  # shape matches base_layer.weight
         W_adapted = W_adapted * self.scaling[adapter_name]
@@ -164,9 +161,9 @@ class CurloraLayer(nn.Module, LycorisLayer):
         2. Add delta activations from all active adapters: sum over adapters in self._active_adapter
         """
         device = x.device
-        base_output = x @ self.base_layer.weight.to(device).t()
+        base_output = x @ self.base_layer.weight.t()#.to(device).t()
         if self.base_layer.bias is not None:
-            base_output += self.base_layer.bias.to(device)
+            base_output += self.base_layer.bias#.to(device)
 
         if not self._disable_adapters and self._active_adapter:
             for adapter in self._active_adapter:
@@ -185,9 +182,9 @@ class CurloraLayer(nn.Module, LycorisLayer):
             return torch.zeros_like(self.base_layer.weight.data)
 
         device = self.base_layer.weight.device
-        C = self.C[adapter_name].to(device)
-        U = self.lora_U[adapter_name].to(device)
-        R = self.R[adapter_name].to(device)
+        C = self.C[adapter_name]#.to(device)
+        U = self.lora_U[adapter_name]#.to(device)
+        R = self.R[adapter_name]#.to(device)
 
         W_adapted = C @ U @ R
         W_adapted = W_adapted * self.scaling[adapter_name]
