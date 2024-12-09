@@ -31,7 +31,7 @@ class CustomLoraConfig(LoraConfig):
 #TODO: 1) set scaling, set dropout
 
 
-class CurloraLayer(LycorisLayer):
+class CurloraLayer(nn.Module, LycorisLayer):
     """
     A LyCORIS-like layer implementing a single U matrix adapter, but now extended to support multiple adapters.
     This adapter samples columns and rows from the base layer weight W to form C and R, and learns a low-rank
@@ -42,14 +42,17 @@ class CurloraLayer(LycorisLayer):
     adapter_layer_names = ("lora_U",)
     other_param_names = ("r", "alpha", "scaling", "rank_dropout", "module_dropout")
 
-    def __init__(self, base_layer: nn.Module, **kwargs) -> None:
-        super().__init__(base_layer)
+    def __init__(self, base_layer: nn.Module, adapter_name, **kwargs) -> None:
+        super().__init__()
+        LycorisLayer.__init__(self, base_layer)
 
         self.ephemeral_gpu_offload = kwargs.get("ephemeral_gpu_offload", False)
         self.kwargs = kwargs
 
         # Dictionaries to store adapter-specific parameters
-        self.lora_U = nn.ParameterDict()
+        self.lora_U = nn.ParameterDict({
+            adapter_name : nn.Parameter(torch.zeros(1, 1), requires_grad=True)
+        })
         self.C = {}
         self.R = {}
 
@@ -104,6 +107,7 @@ class CurloraLayer(LycorisLayer):
         self.C[adapter_name] = C
         self.R[adapter_name] = R
         self.lora_U[adapter_name] = U
+
         self.r[adapter_name] = r
         self.alpha[adapter_name] = alpha
         self.scaling[adapter_name] = alpha / r
