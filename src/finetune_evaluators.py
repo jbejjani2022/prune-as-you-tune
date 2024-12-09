@@ -32,9 +32,17 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
 
             # Feed-Forward Modules
             "intermediate.dense",
-            "output.dense"
+            "output.dense",
+
+            "dense"
         ]
         return target_modules
+
+"""Found linear layer: query
+Found linear layer: key
+Found linear layer: value
+Found linear layer: dense
+Found linear layer: classifier"""
 
 
 class DistilBertFineTuneEvaluator(FineTuneEvaluator):
