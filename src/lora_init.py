@@ -68,7 +68,7 @@ class CurloraLayer(nn.Module, LycorisLayer):
         self.R[adapter_name] = R
         #self.lora_U[adapter_name] = U
         self.lora_U = nn.ParameterDict({
-            adapter_name : nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
+            adapter_name : nn.Parameter(torch.zeros(C.size(1), R.size(0)), requires_grad=True)
         })
 
         #resuming function template
@@ -123,6 +123,8 @@ class CurloraLayer(nn.Module, LycorisLayer):
         self.C[adapter_name] = C
         self.R[adapter_name] = R
         self.lora_U[adapter_name] = U"""
+
+        self.lora_U[adapter_name].requires_grad = True
 
         self.r[adapter_name] = r
         self.alpha[adapter_name] = alpha
