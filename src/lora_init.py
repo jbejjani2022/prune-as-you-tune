@@ -42,7 +42,7 @@ class CurloraLayerInner(LoraLayer):
 
         LoraLayer.__init__(self, base_layer) #will initialize lora_A, lora_B param dicts, but they will be empty
 
-        self.active_adapter = adapter_name
+        #self.active_adapter = adapter_name
         self.update_layer(
             adapter_name,
             r,
@@ -181,7 +181,7 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         **kwargs,
     ) -> None:
         super().__init__()
-        CurloraLayerInner.__init__(self, base_layer, **kwargs)
+        CurloraLayerInner.__init__(self, base_layer, adapter_name, r, **kwargs)
         self.fan_in_fan_out = fan_in_fan_out
 
         self._active_adapter = adapter_name
