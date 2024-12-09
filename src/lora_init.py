@@ -31,7 +31,7 @@ class CustomLoraConfig(LoraConfig):
 #TODO: 1) set scaling, set dropout
 
 
-class CurloraLayerOld(torch.nn.Module, BaseTunerLayer):
+class CurloraLayer(torch.nn.Module, BaseTunerLayer):
     """
     A custom LoRA-like layer that has only one trainable parameter U.
     This is a template class that you can fill in with your desired forward pass logic.
