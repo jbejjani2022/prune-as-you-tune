@@ -34,7 +34,8 @@ class LoggerCallback(TrainerCallback):
     def on_epoch_end(self, args, state, control, **kwargs):
         # Get the trainer instance from kwargs
         trainer = kwargs.get('trainer')
-        if trainer is not None:
+        print(**kwargs)
+        """"if trainer is not None:
             # Run evaluation
             metrics = trainer.evaluate()
             print(f"Epoch {epoch} Metrics:", metrics)
@@ -52,4 +53,4 @@ class LoggerCallback(TrainerCallback):
         # Save the entire trainer state, which includes model, optimizer, and scheduler states
         kwargs["model"].save_pretrained(checkpoint_path)  # Save model
         state.save_to_json(os.path.join(checkpoint_path, "trainer_state.json"))  # Save trainer state (includes optimizer, scheduler)
-        print(f"Epoch {epoch} checkpoint saved at {checkpoint_path}, NOTE: loading from checkpoints perilous with curlora")
+        print(f"Epoch {epoch} checkpoint saved at {checkpoint_path}, NOTE: loading from checkpoints perilous with curlora")"""

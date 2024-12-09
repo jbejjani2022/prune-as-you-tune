@@ -17,7 +17,7 @@ class CustomLoraConfig(LoraConfig):
         #print(f'kwargs customloraconfig: {self.device}')
 
 
-# TODO: NEED TO WRITE THE MERGE, AND MERGE_AND_UNLOAD FUNCTIONS!
+# TODO: check LoRALayer attribute names!
 
 
 #NOTE: horrendous -- When loading the model, you have to register the custom modules again
@@ -88,8 +88,11 @@ class CurloraLayer(nn.Module, LoraLayer):
         col_indices = torch.multinomial(inv_col_probs, rank, replacement=False)
         row_indices = torch.multinomial(inv_row_probs, rank, replacement=False)
 
-        C = W[:, col_indices]
-        R = W[row_indices, :]
+        #C = W[:, col_indices]
+        #R = W[row_indices, :]
+
+        C = W[:, col_indices].clone()
+        R = W[row_indices, :].clone()
     
         return C, R
     
