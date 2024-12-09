@@ -27,7 +27,283 @@ class CustomLoraConfig(LoraConfig):
         #self.device = kwargs.get('device')
         #print(f'kwargs customloraconfig: {self.device}')
 
-class CurloraLayer(torch.nn.Module, BaseTunerLayer):
+class CurloraLayerInner(LoraLayer):
+    def __init__(self,
+            base_layer,
+            adapter_name,
+            r: int = 64,
+            lora_alpha: int = 1,
+            lora_dropout: float = 0.0,
+            init_lora_weights: bool = True,
+            use_rslora: bool = False,
+            use_dora: bool = False,
+            lora_bias: bool = False,
+            **kwargs,):
+
+        LoraLayer.__init__(self, base_layer) #will initialize lora_A, lora_B param dicts, but they will be empty
+
+        self.active_adapter = adapter_name
+        self.update_layer(
+            adapter_name,
+            r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            init_lora_weights=init_lora_weights,
+            use_rslora=use_rslora,
+            use_dora=use_dora,
+            lora_bias=lora_bias
+        )
+
+        self.base_layer = base_layer
+        self._disable_adapters = False
+        self.merged_adapters = []
+        #self.use_dora: dict[str, bool] = {}
+        #self.lora_bias: dict[str, bool] = {}
+        #self.lora_magnitude_vector = nn.ModuleDict()  # if needed for advanced functionality
+        #self._caches: dict[str, Any] = {}
+        self.ephemeral_gpu_offload = kwargs.get("ephemeral_gpu_offload", False)
+        self.kwargs = kwargs
+
+        r = kwargs.get("r", 64)
+        sm = kwargs.get('sampling_method', 'inverted_probs')
+
+        self.base_layer.weight.requires_grad = False
+        if self.base_layer.bias is not None:
+            self.base_layer.bias.requires_grad = False
+
+        W = base_layer.weight.data
+        #default sampling method is inverted probabilities (ie, prioritize rows and columns with lowest values)
+        #self.C, self.R = self.compute_C_and_R(W, lora_config.r, lora_config.sampling_method)
+        #print(f"from curloralayer init: {kwargs.get('r', -1)}")
+        
+        self.C, self.R = self.compute_C_and_R(W, r, sm)
+        #freeze C, R (we will only update U)
+        self.C.requires_grad = False
+        self.R.requires_grad = False
+
+        #self.U = nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
+        self.lora_U = nn.ParameterDict({
+            "lora_U": nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
+        })
+
+        self.adapter_name = adapter_name #"curlora"
+        print("adapter_name:", adapter_name)
+
+    def update_layer(
+        self,
+        adapter_name,
+        r,
+        lora_alpha,
+        lora_dropout,
+        init_lora_weights,
+        use_rslora,
+        use_dora: bool = False,
+        lora_bias: bool = False
+    ):
+        self.r[adapter_name] = r
+        self.lora_alpha[adapter_name] = lora_alpha
+
+        if lora_dropout > 0.0:
+            lora_dropout_layer = nn.Dropout(p=lora_dropout)
+        else:
+            lora_dropout_layer = nn.Identity()
+
+        self.lora_dropout.update(nn.ModuleDict({adapter_name: lora_dropout_layer}))
+
+        #NOTE: we already initialized C, R, and U
+
+    def reset_lora_parameters(self, adapter_name, init_lora_weights):
+        #we shouldn't need to reset parametters, in our implementation
+        pass
+
+    #NOTE: skipping scale_layer, unscale_layer implementation. The base class implementations shouldn't affect C, U, R at all
+    #NOTE: reimplimenting check_forward_args and mixed_batch_forward. I don't *think* they should affect curlora, but just in case
+
+    def _check_forward_args(self, x, *args, **kwargs):
+        pass
+
+    def _mixed_batch_forward(
+        self, x: torch.Tensor, *args: Any, adapter_names: list[str], **kwargs: Any
+    ) -> torch.Tensor:
+        result = self.base_layer(x, *args, **kwargs)
+        return result
+    
+    #assuming sampling method = inverted probabilities 
+    def compute_C_and_R(self, W, rank, sampling_method): 
+        #device = W.device
+        num_rows, num_cols = W.size()
+        #adjust rank if needed
+        rank = min(rank, num_rows, num_cols)
+        #print(f"desired rank: {rank}, num_rows: {num_rows}, num_cols: {num_cols}")
+
+        total_norm = torch.norm(W) ** 2  #scalar
+
+        #col norm and probs
+        col_norms = torch.norm(W, dim=0) ** 2  #shape: [n]
+        col_probs = col_norms / total_norm  #shape: [n]
+        #invert col probs
+        inv_col_probs = 1 / col_probs
+        inv_col_probs /= inv_col_probs.sum() #normalize
+
+        #row norms and probs (chatgpt corrected)
+        row_norms = torch.norm(W, dim=1) ** 2  #shape: [m]
+        row_probs = row_norms / total_norm  #shape: [m]
+        #inver row probs
+        inv_row_probs = 1 / row_probs
+        inv_row_probs /= inv_row_probs.sum() #normalize
+
+        #sample (based on inverted probabilities => lowest probabilities prioritized)
+        col_indices = torch.multinomial(inv_col_probs, rank, replacement=False)
+        row_indices = torch.multinomial(inv_row_probs, rank, replacement=False)
+
+        C = W[:, col_indices]
+        R = W[row_indices, :]
+
+        #C = W[:, col_indices].clone()
+        #R = W[row_indices, :].clone()
+    
+        return C, R
+    
+class CurloraLayer(nn.Module, CurloraLayerInner):
+    def __init__(
+        self,
+        base_layer,
+        adapter_name: str,
+        r: int = 0,
+        lora_alpha: int = 1,
+        lora_dropout: float = 0.0,
+        fan_in_fan_out: bool = False,  # Set this to True if the layer to replace stores weight like (fan_in, fan_out)
+        is_target_conv_1d_layer: bool = False,
+        init_lora_weights: Union[bool, str] = True,
+        use_rslora: bool = False,
+        use_dora: bool = False,
+        lora_bias: bool = False,
+        **kwargs,
+    ) -> None:
+        super().__init__()
+        LoraLayer.__init__(self, base_layer, **kwargs)
+        self.fan_in_fan_out = fan_in_fan_out
+
+        self._active_adapter = adapter_name
+        self.update_layer(
+            adapter_name,
+            r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            init_lora_weights=init_lora_weights,
+            use_rslora=use_rslora,
+            use_dora=use_dora,
+            lora_bias=lora_bias,
+        )
+        self.is_target_conv_1d_layer = is_target_conv_1d_layer
+
+    def merge(self, safe_merge: bool = False) -> None:
+        """
+        Merge the CurLoRa weights into the base weights.
+        Similar to the original template, but adapted for C, U, R.
+        
+        Args:
+            safe_merge (bool): If True, performs a safe merge by checking for NaNs.
+        """
+        if self.merged:
+            # Already merged
+            return
+        
+        base_layer = self.get_base_layer()
+        delta_weight = self.get_delta_weight()
+
+        if safe_merge:
+            # Safe merge: clone original weights and check for NaNs after merge
+            orig_weights = base_layer.weight.data.clone()
+            merged_weights = orig_weights + delta_weight
+            if not torch.isfinite(merged_weights).all():
+                raise ValueError("NaNs detected in the merged weights.")
+            base_layer.weight.data = merged_weights
+        else:
+            # Direct merge
+            base_layer.weight.data += delta_weight
+
+        # If there's a bias term to adjust (if supported), handle it here if needed:
+        # if self.lora_bias.get(self._active_adapter, False):
+        #     base_layer.bias.data += some_bias_delta
+
+        self.merged_adapters.append(self._active_adapter)
+
+    def unmerge(self) -> None:
+        """
+        Unmerge the CurLoRa weights from the base weights.
+        This reverses the merge operation.
+        """
+        if not self.merged:
+            warnings.warn("Already unmerged. Nothing to do.")
+            return
+
+        active_adapter = self.merged_adapters.pop()
+        # Since we only have one adapter in this context, active_adapter should match self._active_adapter
+        if active_adapter == self._active_adapter:
+            base_layer = self.get_base_layer()
+            delta_weight = self.get_delta_weight()
+
+            # Subtract the delta weights
+            base_layer.weight.data -= delta_weight
+
+            # If bias was adjusted during merge, revert it:
+            # if self.lora_bias.get(active_adapter, False):
+            #     base_layer.bias.data -= corresponding_bias_delta
+
+
+    def get_delta_weight(self) -> torch.Tensor:
+        """
+        Compute the delta weight for the current adapter.
+
+        Returns:
+            torch.Tensor: The delta weight tensor of shape identical to self.base_layer.weight.
+        """
+        device = self.base_layer.weight.device
+        dtype = self.base_layer.weight.dtype
+
+        # Move C, U, R to the same device and dtype as the base weights.
+        C = self.C
+        R = self.R
+        U = self.lora_U["lora_U"]
+
+        # Compute delta_weight = C @ U @ R
+        delta_weight = C @ U @ R
+        return delta_weight
+
+
+    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
+        #if not self.training:  # During evaluation
+        #    print("Forward pass in eval mode")
+        #    print(f"Input shape: {x.shape}")
+        device = x.device
+        U = self.lora_U["lora_U"]
+        #W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
+        W_adapted = self.C @ U @ self.R
+
+        #output given by W + delta_W
+        output = x @ (self.base_layer.weight + W_adapted).t()
+        #output = x @ (self.base_layer.weight.to(device) + W_adapted).t()
+
+        #if not self.training:
+        #    print(f"Output shape: {output.shape}")
+
+        if self.base_layer.bias is not None:
+            output += self.base_layer.bias
+
+        assert W_adapted.shape == self.base_layer.weight.shape, (
+            f"W_adapted shape {W_adapted.shape} does not match "
+            f"original layer weight shape {self.base_layer.weight.shape}"
+        )
+
+        return output
+
+
+
+### deprecated ###
+
+
+class CurloraLayerDeprecated1(torch.nn.Module, BaseTunerLayer):
     """
     A custom LoRA-like layer that has only one trainable parameter U.
     This is a template class that you can fill in with your desired forward pass logic.
@@ -169,9 +445,8 @@ class CurloraLayer(torch.nn.Module, BaseTunerLayer):
         return C, R
 
 
-### deprecated ###
 
-class CurloraLayerDeprecated(nn.Module, LycorisLayer):
+class CurloraLayerDeprecated2(nn.Module, LycorisLayer):
     """
     A LyCORIS-like layer implementing a single U matrix adapter, but now extended to support multiple adapters.
     This adapter samples columns and rows from the base layer weight W to form C and R, and learns a low-rank
