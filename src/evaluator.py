@@ -336,11 +336,11 @@ class FineTuneEvaluator(ABC):
                     print(f"  Param: {param_name}, requires_grad: {param.requires_grad}")
 
         
-        pruner = self.get_pruner(model, lora=True)
-        pruner.report_sparsity()
+        #pruner = self.get_pruner(model, lora=True)
+        #pruner.report_sparsity()
         #print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
-        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
-        pruner.report_sparsity()
+        #pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        #pruner.report_sparsity()
 
         """batch = next(iter(DataLoader(self.eval_dataset, batch_size=2, collate_fn=self.data_collator)))
         with torch.no_grad():
@@ -351,8 +351,9 @@ class FineTuneEvaluator(ABC):
         trainer = self.get_trainer(model, logger_callback=logger)
         #self.evaluation_hook(trainer)
         trainer.train()
-        pruner.remove()
+        #pruner.remove()
 
+        print("starting eval:")
         eval_results = trainer.evaluate()
         print(eval_results)
         
