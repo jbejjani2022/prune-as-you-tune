@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 from peft.tuners.lora.layer import LoraLayer, BaseTunerLayer
-from peft.tuners.lycoris_utils import LycorisLayer
+from peft.tuners.lycoris_utils import LycorisLayer, LycorisConfig
 
 from typing import Optional
 
@@ -17,7 +17,7 @@ from torch import nn
 from abc import abstractmethod
 from collections import defaultdict
 
-class CustomLoraConfig(LoraConfig):
+class CustomLoraConfig(LycorisConfig): #(LoraConfig):
 
     def __init__(self, **kwargs):
         super().__init__()
