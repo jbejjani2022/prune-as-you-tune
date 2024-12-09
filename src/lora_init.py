@@ -292,6 +292,6 @@ def replace_modules(model, peft_config, device):
             print(f"Found linear layer: {name}")
             #device = next(module.parameters()).device
             #print(f"replace_modules device: {device}")
-            model._modules[name] = CurloraLayer(module, "curlora") #, peft_config, device) #TODO: uncomment to use function!
+            #model._modules[name] = CurloraLayer(module, "curlora") #, peft_config, device) #TODO: uncomment to use function!
         else:
             replace_modules(module, peft_config, device)

@@ -324,7 +324,7 @@ class FineTuneEvaluator(ABC):
         #print(f"from prune_curlora_finetune: self.lora_config.r: {self.lora_config.r}")
 
         #get model with CustomLora integration
-        #model = get_peft_model_with_curlora(model, self.lora_config, device)
+        get_peft_model_with_curlora(model, self.lora_config, device)
         model = get_peft_model(model, self.lora_config)
         #model.to(device) #new addition!
 
