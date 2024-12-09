@@ -181,7 +181,7 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         **kwargs,
     ) -> None:
         super().__init__()
-        LoraLayer.__init__(self, base_layer, **kwargs)
+        CurloraLayerInner.__init__(self, base_layer, **kwargs)
         self.fan_in_fan_out = fan_in_fan_out
 
         self._active_adapter = adapter_name
