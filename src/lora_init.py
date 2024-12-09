@@ -27,10 +27,6 @@ class CustomLoraConfig(LoraConfig):
         #self.device = kwargs.get('device')
         #print(f'kwargs customloraconfig: {self.device}')
 
-
-#TODO: 1) set scaling, set dropout
-
-
 class CurloraLayer(torch.nn.Module, BaseTunerLayer):
     """
     A custom LoRA-like layer that has only one trainable parameter U.
@@ -74,6 +70,7 @@ class CurloraLayer(torch.nn.Module, BaseTunerLayer):
         })
 
         self.adapter_name = adapter_name #"curlora"
+        print("adapter_name:", adapter_name)
 
     @property
     def disable_adapters(self) -> bool:
