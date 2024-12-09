@@ -41,7 +41,7 @@ class CurloraLayer(nn.Module, LoraLayer):
         #default sampling method is inverted probabilities (ie, prioritize rows and columns with lowest values)
         #self.C, self.R = self.compute_C_and_R(W, lora_config.r, lora_config.sampling_method)
         #print(f"from curloralayer init: {kwargs.get('r', -1)}")
-        r = kwargs.get('r', 64) #NOTE: check print statement above to ensure not hardcoded
+        r = kwargs.get('r', 32) #NOTE: check print statement above to ensure not hardcoded
         sm = kwargs.get('sampling_method', 'inverted_probs')
         self.C, self.R = self.compute_C_and_R(W, r, sm)
 
