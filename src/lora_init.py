@@ -55,7 +55,7 @@ class CurloraLayer(nn.Module, LycorisLayer):
 
         #breaking from function template:
         W = self.base_layer.weight.data
-        C, R = self.compute_C_and_R(W, 32, "inverted_probs") #NOTE: hardcoded r = 32
+        C, R = self.compute_C_and_R(W, 64, "inverted_probs") #NOTE: hardcoded r = 64
         # C and R are not trainable, only U is trainable
         C.requires_grad = False
         R.requires_grad = False

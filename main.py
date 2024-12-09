@@ -52,7 +52,7 @@ print(training_args.device)
 
 curlora_config = CustomLoraConfig(
     task_type=TaskType.SEQ_CLS,
-    r=32,                # Rank of LoRA
+    r=64,                # Rank of LoRA
     lora_alpha=32,       # Scaling factor
     lora_dropout=0.1,     # Dropout rate
     sampling_method='inverted_probs'

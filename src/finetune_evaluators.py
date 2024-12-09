@@ -34,7 +34,16 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
             "intermediate.dense",
             "output.dense",
 
-            "dense"
+            #additional!
+
+            # Pooler Layer
+            "pooler.dense",
+            
+            # Task-Specific Heads
+            "classifier.dense",
+            "classifier.out_proj",
+            "predictions.transform.dense",
+            "predictions.decoder"
         ]
         return target_modules
 
