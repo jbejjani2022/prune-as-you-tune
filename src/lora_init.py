@@ -19,7 +19,7 @@ class CustomLoraConfig(LoraConfig):
 
 # TODO: NEED TO WRITE THE MERGE, AND MERGE_AND_UNLOAD FUNCTIONS!
 
-"""
+
 #NOTE: horrendous -- When loading the model, you have to register the custom modules again
 class CurloraLayer(nn.Module, LoraLayer):
     #def __init__(self, original_layer, config: CustomLoraConfig, device):
@@ -139,12 +139,12 @@ class CurloraLayer(nn.Module, LoraLayer):
         del self.C
         del self.R
 
-"""
 
-class CurloraLayer(LoraLayer):
     def __init__(self, base_layer, adapter_name, **kwargs):
         # Initialize LoraLayer with base_layer and adapter_name
-        super().__init__(base_layer=base_layer, adapter_name=adapter_name, **kwargs)
+        nn.Module.__init__(self)
+        LoraLayer.__init__(self, base_layer=base_layer, adapter_name=adapter_name, **kwargs)
+        #super().__init__(base_layer=base_layer, adapter_name=adapter_name, **kwargs)
 
         self.original_layer = base_layer
         # Freeze original layer parameters
@@ -254,6 +254,6 @@ def replace_modules(model, peft_config, device):
             print(f"Found linear layer: {name}")
             #device = next(module.parameters()).device
             #print(f"replace_modules device: {device}")
-            #model._modules[name] = CurloraLayer(module, peft_config, device) #TODO: uncomment to use function!
+            model._modules[name] = CurloraLayer(module, peft_config, device) #TODO: uncomment to use function!
         else:
             replace_modules(module, peft_config, device)
