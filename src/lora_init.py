@@ -19,7 +19,7 @@ class CustomLoraConfig(LoraConfig):
 
 # TODO: NEED TO WRITE THE MERGE, AND MERGE_AND_UNLOAD FUNCTIONS!
 
-
+"""
 #NOTE: horrendous -- When loading the model, you have to register the custom modules again
 class CurloraLayer(nn.Module, LoraLayer):
     #def __init__(self, original_layer, config: CustomLoraConfig, device):
@@ -90,22 +90,6 @@ class CurloraLayer(nn.Module, LoraLayer):
 
         C = W[:, col_indices]
         R = W[row_indices, :]
-        
-        ### verify that inverted_probs sampling is working correctly!
-        """inv_col_probs_list = inv_col_probs.cpu().tolist()
-        all_col_indices = list(range(len(inv_col_probs_list)))
-        col_inv_probs_pairs = list(zip(all_col_indices, inv_col_probs_list))
-        sorted_col_inv_probs_pairs = sorted(
-            col_inv_probs_pairs, key=lambda x: x[1], reverse=True
-        )
-
-        print("bottom 5! top 5!")
-        indices_to_print = sorted_col_inv_probs_pairs[:5] + sorted_col_inv_probs_pairs[-5:]
-        for idx, inv_prob in indices_to_print:
-            print(f'Index: {idx}, Inverted Probability: {inv_prob}')
-
-        for i in range(0, min(5, len(col_indices))):
-            print(f'selected probs: {inv_col_probs[col_indices[i]]}')"""
     
         return C, R
     
@@ -155,7 +139,102 @@ class CurloraLayer(nn.Module, LoraLayer):
         del self.C
         del self.R
 
-    
+"""
+
+class CurloraLayer(LoraLayer):
+    def __init__(self, base_layer, adapter_name, **kwargs):
+        # Initialize LoraLayer with base_layer and adapter_name
+        super().__init__(base_layer=base_layer, adapter_name=adapter_name, **kwargs)
+
+        self.original_layer = base_layer
+        # Freeze original layer parameters
+        self.original_layer.weight.requires_grad = False
+        if self.original_layer.bias is not None:
+            self.original_layer.bias.requires_grad = False
+
+        W = self.original_layer.weight.data
+        r = kwargs.get('r', 32)
+        sm = kwargs.get('sampling_method', 'inverted_probs')
+
+        # Compute C and R
+        C, R = self.compute_C_and_R(W, r, sm)
+        
+        # Register C and R as buffers so they move with the model and don't require grad
+        self.register_buffer("C", C)
+        self.register_buffer("R", R)
+
+        # lora_U stores the U parameter for each adapter; key is the adapter_name
+        # Ensure parameter names start with "lora_"
+        self.lora_U = nn.ParameterDict({
+            adapter_name: nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
+        })
+
+        # Set the active adapter
+        self.set_adapter(adapter_name)
+
+    def compute_C_and_R(self, W, rank, sampling_method):
+        num_rows, num_cols = W.size()
+        rank = min(rank, num_rows, num_cols)
+
+        total_norm = torch.norm(W).pow(2)
+
+        # column norms and probabilities
+        col_norms = torch.norm(W, dim=0).pow(2)
+        col_probs = col_norms / total_norm
+        inv_col_probs = 1 / col_probs
+        inv_col_probs /= inv_col_probs.sum()
+
+        # row norms and probabilities
+        row_norms = torch.norm(W, dim=1).pow(2)
+        row_probs = row_norms / total_norm
+        inv_row_probs = 1 / row_probs
+        inv_row_probs /= inv_row_probs.sum()
+
+        col_indices = torch.multinomial(inv_col_probs, rank, replacement=False)
+        row_indices = torch.multinomial(inv_row_probs, rank, replacement=False)
+
+        C = W[:, col_indices]
+        R = W[row_indices, :]
+
+        return C, R
+
+    def forward(self, x):
+        # Retrieve the adapter name from self.active_adapter
+        adapter_name = self.active_adapter
+        U = self.lora_U[adapter_name]
+
+        # Compute the low-rank adapted weight
+        W_adapted = self.C @ U @ self.R
+
+        # Apply the adapted weight
+        output = x @ (self.original_layer.weight + W_adapted).t()
+        if self.original_layer.bias is not None:
+            output += self.original_layer.bias
+
+        # Ensure shape matches
+        assert W_adapted.shape == self.original_layer.weight.shape, (
+            f"W_adapted shape {W_adapted.shape} does not match "
+            f"original layer weight shape {self.original_layer.weight.shape}"
+        )
+
+        return output
+
+    def merge(self):
+        if getattr(self, "merged", False):
+            return
+        adapter_name = self.active_adapter
+        U = self.lora_U[adapter_name]
+        W_adapted = self.C @ U @ self.R
+
+        self.original_layer.weight.data = self.original_layer.weight.data + W_adapted.data
+        self.merged = True
+
+    def merge_and_unload(self):
+        self.merge()
+        # Remove the LoRA parameters since they are now merged
+        del self.lora_U
+        del self._buffers["C"]
+        del self._buffers["R"]
 
 ### deprecated ###
 
