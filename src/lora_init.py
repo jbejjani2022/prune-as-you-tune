@@ -273,9 +273,9 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
 
 
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
-        if not self.training:  # During evaluation
-            print("Forward pass in eval mode")
-            print(f"Input shape: {x.shape}")
+        #if not self.training:  # During evaluation
+        #    print("Forward pass in eval mode")
+        #    print(f"Input shape: {x.shape}")
 
         device = x.device
         U = self.lora_U["lora_U"]
@@ -286,8 +286,8 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         output = x @ (self.base_layer.weight + W_adapted).t()
         #output = x @ (self.base_layer.weight.to(device) + W_adapted).t()
 
-        if not self.training:
-            print(f"Output shape: {output.shape}")
+        #if not self.training:
+        #    print(f"Output shape: {output.shape}")
 
         if self.base_layer.bias is not None:
             output += self.base_layer.bias
@@ -298,7 +298,15 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         )
 
         return output
-
+"""Forward pass in eval mode
+Input shape: torch.Size([64, 512, 768])
+Output shape: torch.Size([64, 512, 768])
+Forward pass in eval mode
+Input shape: torch.Size([64, 512, 768])
+Output shape: torch.Size([64, 512, 3072])
+Forward pass in eval mode
+Input shape: torch.Size([64, 512, 3072])
+Output shape: torch.Size([64, 512, 768])"""
 
 
 ### deprecated ###

@@ -350,7 +350,7 @@ class FineTuneEvaluator(ABC):
         logger = self.get_logger('prune_curlora_finetune.csv', 'checkpoints/prune_curlora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
         #self.evaluation_hook(trainer)
-        trainer.train()
+        #trainer.train()
         #pruner.remove()
 
         print("starting eval:")
