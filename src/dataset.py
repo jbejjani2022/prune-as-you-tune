@@ -6,8 +6,8 @@ from datasets import load_dataset, Dataset, concatenate_datasets,ClassLabel, Dat
 import pandas as pd
 
 MODEL_NAMES_ORIG_DATASETS = {
-    "distilbert-base-uncased": "bookcorpus/bookcorpus",
-    "bert-base-uncased": "bookcorpus/bookcorpus",
+    "distilbert-base-uncased": ("Salesforce/wikitext", "wikitext-2-raw-v1 "),
+    "bert-base-uncased": ("Salesforce/wikitext", "wikitext-2-raw-v1 "),
 }
 
 class FineTuneDataset:
@@ -28,13 +28,13 @@ class FineTuneDataset:
         self.mix_strategy = mix_strategy
         #self.finetune_dataset_name = finetune_dataset_name
 
-        orig_dataset_name = MODEL_NAMES_ORIG_DATASETS[model_name]
+        orig_dataset_name, orig_dataset_dir = MODEL_NAMES_ORIG_DATASETS[model_name]
         if sampling_strategy == "first":
             print(f"Taking first {mix_n} samples from original dataset")
-            self.orig_dataset = load_dataset(orig_dataset_name)["train"].take(mix_n)
+            self.orig_dataset = load_dataset(orig_dataset_name, data_dir=orig_dataset_dir, split="train").take(mix_n)
         else: 
             print(f"Randomly sampling {mix_n} samples from original dataset")
-            self.orig_dataset = load_dataset(orig_dataset_name)["train"].shuffle().take(mix_n)
+            self.orig_dataset = load_dataset(orig_dataset_name, data_dir=orig_dataset_dir, split="train").shuffle().take(mix_n)
         
 
     
