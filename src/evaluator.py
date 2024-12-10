@@ -184,6 +184,7 @@ class FineTuneEvaluator(ABC):
         self.prune_lora_finetune()
         self.lora_prune_interleave()
         self.lora_prune_kd_interleave()
+        self.prune_curlora_finetune()
         # self.lora_prune_kd_interleave_not_rs()
 
     """def evaluation_hook(self, eval_dataloader):
@@ -349,13 +350,17 @@ class FineTuneEvaluator(ABC):
         
         logger = self.get_logger('prune_curlora_finetune.csv', 'checkpoints/prune_curlora_finetune')
         trainer = self.get_trainer(model, logger_callback=logger)
-        #self.evaluation_hook(trainer)
         #trainer.train()
         #pruner.remove()
 
         print("starting eval:")
-        eval_results = trainer.evaluate()
-        print(eval_results)
+        #eval_results = trainer.evaluate()
+        #print(eval_results)
+
+        predictions = trainer.predict(self.eval_dataset)
+        print(predictions)
+        custom_metrics = trainer.compute_metrics((predictions.predictions, predictions.label_ids))
+        print(custom_metrics)
         
         if self.eval_ppl:
             self.report_perplexity(model)

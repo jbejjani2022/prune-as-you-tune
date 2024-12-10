@@ -26,6 +26,7 @@ save_dir = 'ppl_tests/50pct-sparsity-5epochs-before-remove'
 
 training_args = TrainingArguments(
     output_dir=output_dir,
+    run_name="my_cool_experiment",
     num_train_epochs=num_epochs,
     eval_strategy="epoch",      # Evaluate every epoch
     logging_strategy="epoch",   # Log after each epoch
