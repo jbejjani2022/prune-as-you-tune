@@ -358,8 +358,13 @@ class FineTuneEvaluator(ABC):
         #print(eval_results)
 
         predictions = trainer.predict(self.eval_dataset)
-        print(predictions)
-        custom_metrics = trainer.compute_metrics((predictions.predictions, predictions.label_ids))
+        print("predictions: ", predictions)
+        actual_logits = predictions.predictions[1]
+        print("actual logits: ", actual_logits)
+
+        predictions2 = np.argmax(actual_logits, axis=-1)
+        print("predictions2: ", predictions2)
+        custom_metrics = trainer.compute_metrics((predictions2, predictions.label_ids))
         print(custom_metrics)
         
         if self.eval_ppl:
