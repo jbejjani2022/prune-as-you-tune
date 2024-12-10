@@ -39,7 +39,7 @@ class FineTuneEvaluator(ABC):
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         # load and tokenize the dataset
-
+        self.dataset_args = dataset_args
         # AG 2024-12-10: This is not "cleanly" all in dataset.py bc we need num labels for the model
 
         unmixed_dataset = load_dataset(dataset_args["dataset_name"])
@@ -50,7 +50,9 @@ class FineTuneEvaluator(ABC):
         self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
         self.model = self.model.to(device)
         if self.dataset_args["mix_n"] > 0:
-            self.dataset = FineTuneDataset(self.model, self.model_name, self.tokenize, unmixed_dataset, self.dataset_args["mix_n"], self.dataset_args["sampling_strategy"], self.dataset_args["mix_strategy"]).get_mixed_dataset()
+            # AG 2025-12-10: TODO make this a clean dictionary unpacking
+            self.dataset = FineTuneDataset(self.model, self.model_name, self.tokenizer, unmixed_dataset, self.dataset_args["finetune_dataset_name"], self.dataset_args["mix_n"], self.dataset_args["sampling_strategy"], self.dataset_args["mix_strategy"]).get_mixed_dataset()
+            self.dataset = self.dataset.map(self.tokenize, batched=True)
         else:
             self.dataset = unmixed_dataset.map(self.tokenize, batched=True)
 

@@ -53,14 +53,15 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
     if pruning_start_epoch >= num_epochs:
         pruning_start_epoch = num_epochs - 1
 
-    save_dir = f"bert-{dataset}-{max_length}/{pruning_method}-{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-start{pruning_start_epoch}-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}/"
+    save_dir = f"{model_name}-{dataset}-{max_length}/{pruning_method}-{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-start{pruning_start_epoch}-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}-datamix{dataset_mix_ptg}_{dataset_sampling_strategy}_{dataset_mix_strategy}/"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
     dataset_args = {"dataset_name": dataset, 
                     "mix_n": int(np.ceil(dataset_mix_ptg * n_samples)),
                     "sampling_strategy": dataset_sampling_strategy,
-                    "mix_strategy": dataset_mix_strategy}
+                    "mix_strategy": dataset_mix_strategy,
+                    "finetune_dataset_name": dataset}
 
     training_args = TrainingArguments(
         output_dir=output_dir,
