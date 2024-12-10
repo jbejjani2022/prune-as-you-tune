@@ -12,12 +12,16 @@ app = typer.Typer()
 os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
 
 @app.command()
+# AG 24-12-10: pass dataset args to evaluator
 def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
           ptg : Annotated[Optional[float], typer.Option(help="Percentage of parameters to prune per pruning call")] = 0.05,
           sparsity_target: Annotated[Optional[float], typer.Option(help="Target percentage of parameters to prune")] = 0.5,
           num_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 5,
           output_dir : Annotated[Optional[str], typer.Option(help="Output directory for logs and model checkpoints")] = "logs",
           dataset : Annotated[Optional[str], typer.Option(help="Dataset to use for fine-tuning")] = "imdb",
+          dataset_mix_ptg : Annotated[Optional[float], typer.Option(help="Percentage of orig dataset samples to include - in training only")] = 0.05,
+          dataset_mix_strategy : Annotated[Optional[str], typer.Option(help="Mixing strategy for dataset - 'old_first' or 'random'")] = "random",
+          dataset_sampling_strategy : Annotated[Optional[str], typer.Option(help="Sampling strategy for old samples dataset - 'first' or 'random' ")] = "first",
           full_evaluate : Annotated[Optional[bool], typer.Option(help="Evaluate using all variations of pruning methods, as well as full fine-tuning")] = False,
           use_lora : Annotated[Optional[bool], typer.Option(help="Use LoRA adapters for fine-tuning")] = True,
           use_kd : Annotated[Optional[bool], typer.Option(help="Use knowledge distillation for fine-tuning")] = True,
@@ -54,6 +58,11 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
+    dataset_args = {"dataset_name": dataset, 
+                    "mix_n": int(np.ceil(dataset_mix_ptg * n_samples)),
+                    "sampling_strategy": dataset_sampling_strategy,
+                    "mix_strategy": dataset_mix_strategy}
+
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
@@ -66,7 +75,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         dataloader_num_workers=1,
     )
 
-    print(f'dataset: {dataset}')
+    print(f'dataset_args: {dataset_args}')
     print(f'sparsity target: {sparsity_target}')
     print(f'num train epochs: {num_epochs}')
     print(training_args.device)
@@ -94,7 +103,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
 
     evaluator = BertBaseFineTuneEvaluator(
         n_samples=n_samples,
-        dataset=dataset,
+        dataset_args=dataset_args,
         training_args=training_args,
         max_length=None,  # set max_length = None if you don't want to truncate samples
         lora_config=lora_config,

@@ -16,14 +16,16 @@ from src.kd_trainer import KDTrainer
 from src.logger import LoggerCallback
 from src.pruner import PruningCallback
 from src.perplexity import PPL
+from src.dataset import FineTuneDataset
 
+MODEL_NAMES_ORIG_DATASETS = {}
 
 class FineTuneEvaluator(ABC):
     
     def __init__(self,
                  model_name : str,
                  n_samples,
-                 dataset,
+                 dataset_args : dict,
                  training_args : TrainingArguments,
                  max_length : int,  # sets max token length per training sample - useful for reducing train time
                  lora_config : LoraConfig,
@@ -38,8 +40,23 @@ class FineTuneEvaluator(ABC):
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         # load and tokenize the dataset
-        self.dataset = load_dataset(dataset).map(self.tokenize, batched=True)
-        # TODO
+
+        # AG 2024-12-10: This is not "cleanly" all in dataset.py bc we need num labels for the model
+
+        unmixed_dataset = load_dataset(dataset_args["dataset_name"])
+        self.num_labels = len(set(unmixed_dataset['train']['label']))
+        print(f'num_labels = {self.num_labels}')
+        dataset_args["num_labels"] = self.num_labels
+
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
+        self.model = self.model.to(device)
+        if self.dataset_args["mix_n"] > 0:
+            self.dataset = FineTuneDataset(self.model, self.model_name, self.tokenize, unmixed_dataset, self.dataset_args["mix_n"], self.dataset_args["sampling_strategy"], self.dataset_args["mix_strategy"]).get_mixed_dataset()
+        else:
+            self.dataset = unmixed_dataset.map(self.tokenize, batched=True)
+
+        #self.dataset = self.dataset
+        
         self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(n_samples))
         self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(n_samples))
         print(f'{self.train_dataset.num_rows} training samples')
@@ -47,10 +64,11 @@ class FineTuneEvaluator(ABC):
         self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
         self.metric = evaluate.load("accuracy")
         # load model
-        self.num_labels = len(set(self.dataset['train']['label']))
-        print(f'num_labels = {self.num_labels}')
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
-        self.model = self.model.to(device)
+        
+
+        # TODO labels issue
+
+
         # hyperparameters for lora finetuning, pruning, and KD
         self.training_args = training_args
         self.num_epochs = self.training_args.num_train_epochs
@@ -174,6 +192,7 @@ class FineTuneEvaluator(ABC):
             pruner.report_sparsity()
             trainer.train()
             pruner.remove()
+
         if pruner is None:
             trainer.train()
             
