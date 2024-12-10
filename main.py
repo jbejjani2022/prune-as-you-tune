@@ -13,7 +13,8 @@ os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
 
 @app.command()
 # AG 24-12-10: pass dataset args to evaluator
-def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
+def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model name to use for fine-tuning")] = "bert-base-uncased",
+          n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
           sparsity_target: Annotated[Optional[float], typer.Option(help="Target percentage of parameters to prune")] = 0.5,
           num_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 5,
           output_dir : Annotated[Optional[str], typer.Option(help="Output directory for logs and model checkpoints")] = "logs",
@@ -98,18 +99,32 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
                  "temp": kd_temp, 
                  "use_kd_loss": use_kd}
 
-    evaluator = BertBaseFineTuneEvaluator(
-        n_samples=n_samples,
-        dataset_args=dataset_args,
-        training_args=training_args,
-        max_length=None,  # set max_length = None if you don't want to truncate samples
-        lora_config=lora_config,
-        device=device,
-        save_dir=save_dir,
-        pruning_args = pruning_args,
-        loss_args = loss_args,
-        eval_ppl=True
-    )
+    if model_name == "distilbert-base-uncased":
+            evaluator = DistilBertFineTuneEvaluator(
+            n_samples=n_samples,
+            dataset_args=dataset_args,
+            training_args=training_args,
+            max_length=None,  # set max_length = None if you don't want to truncate samples
+            lora_config=lora_config,
+            device=device,
+            save_dir=save_dir,
+            pruning_args = pruning_args,
+            loss_args = loss_args,
+            eval_ppl=True
+        )
+    else:  
+        evaluator = BertBaseFineTuneEvaluator(
+            n_samples=n_samples,
+            dataset_args=dataset_args,
+            training_args=training_args,
+            max_length=None,  # set max_length = None if you don't want to truncate samples
+            lora_config=lora_config,
+            device=device,
+            save_dir=save_dir,
+            pruning_args = pruning_args,
+            loss_args = loss_args,
+            eval_ppl=True
+        )
 
     if full_evaluate:
         evaluator.full_eval_run()

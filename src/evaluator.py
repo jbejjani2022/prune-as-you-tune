@@ -18,7 +18,6 @@ from src.pruner import PruningCallback
 from src.perplexity import PPL
 from src.dataset import FineTuneDataset
 
-MODEL_NAMES_ORIG_DATASETS = {}
 
 class FineTuneEvaluator(ABC):
     

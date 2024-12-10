@@ -1,11 +1,13 @@
 """
 Custom dataset for fine-tuning
 """
-
+import torch
 from datasets import load_dataset, Dataset, concatenate_datasets, interleave_datasets
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-MODEL_NAMES_ORIG_DATASETS = {}
+MODEL_NAMES_ORIG_DATASETS = {
+    "distilbert-base-uncased": "bookcorpus/bookcorpus",
+    "bert-base-uncased": "bookcorpus/bookcorpus",
+}
 
 class FineTuneDataset:
     def __init__(self, 
@@ -33,7 +35,8 @@ class FineTuneDataset:
     # AG 2025-12-10: Kind of unclean
     def _get_orig_labels(self):
         inputs = self.orig_dataset.map(self.tokenize, batched=True)
-        outputs = self.model(**inputs)
+        with torch.inference_mode():
+            outputs = self.model(**inputs)
         predictions = outputs.logits.argmax(dim=-1)
         return predictions.tolist()
 
