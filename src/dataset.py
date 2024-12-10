@@ -22,7 +22,8 @@ class FineTuneDataset:
                  mix_strategy: str):
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.orig_model = model.to(device)
+        self.orig_model = model.deepcopy()
+        self.orig_model = self.orig_model.to(device)
         self.tokenizer = tokenizer
         self.unmixed_dataset = dataset
         self.sampling_strategy = sampling_strategy
