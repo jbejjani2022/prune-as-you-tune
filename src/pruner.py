@@ -13,34 +13,26 @@ import math
 
 class PruningCallback(TrainerCallback):
     
-    def __init__(self, 
+    def __init__(self,
                  model,
-                 lora,  
-                 method, 
-                 sparsity_target, 
-                 num_epochs, 
+                 lora,
+                 method,
+                 sparsity_target,
+                 num_epochs,
                  schedule : str,
                  prune_every_epoch : int,
-                 pruning_start_epoch : int,
-                 structured: bool = True):
+                 pruning_start_epoch : int):
         self.model = model
         self.num_epochs = num_epochs
         self.sparsity_target = sparsity_target
+        self.method = method
         self.lora = lora  # whether the model is being fine-tuned with lora
         if self.lora: print("Using LoRA")
-        # pruning method
-        if method == "L1Unstructured":
-            self.method = prune.L1Unstructured
-        # support other methods here
-        else:
-            raise ValueError(f"Unsupported pruning method: {method}")
         
         # self.schedule gives the ptg by which sparsity of pruning-eligible params will increase before each epoch
         # e.g. self.schedule[0] = how much to increase sparsity before first epoch (epoch 1), self.schedule[1] = how much to increase sparsity before epoch 2
-
         num_pruning_steps = math.ceil((num_epochs - pruning_start_epoch) / prune_every_epoch)  # how many times will we have a non-zero prune ptg
         self.schedule = np.zeros(num_epochs)
-        self.structured = structured
 
         if schedule == "linear":
             # Linear schedule: increase sparsity by a fixed percentage each epoch
@@ -69,14 +61,15 @@ class PruningCallback(TrainerCallback):
             # Ensure module has a weight attribute and parameter
             if hasattr(module, 'weight') and 'weight' in module._parameters:
                 if not isinstance(module, nn.Embedding):  # Skip embedding layers
+                    # Skip params with 1 dim if using structured pruning
+                    if self.method == "L2Structured":
+                        param_tensor = getattr(module, 'weight')
+                        if param_tensor.dim() == 1:
+                            continue
                     if self.lora:
                         # Model is being fine-tuned with lora adapters
                         # Filter for non-trainable, non-LoRA parameters
-                        # print(name)
-                        # print(module.weight.requires_grad, "req grad")
-                        # print("classifier" in name, "classifier")
                         if not module.weight.requires_grad and "classifier" not in name:
-                            # print("found module")
                             assert("lora" not in name)
                             self.params.append((module, 'weight'))
                     else:
@@ -117,21 +110,24 @@ class PruningCallback(TrainerCallback):
             epoch_ptg = self.schedule[epoch]
         
         print(f"\nPruning {epoch_ptg * 100:.2f}% of remaining pretrained weights before epoch {epoch + 1}, increasing sparsity of pretrained weights by {self.schedule[epoch] * 100:.2f}%")
-        if self.structured:
-            prune.ln_structured(
-                self.params,
-                pruning_method=self.method,
-                amount=epoch_ptg,  # percentage of REMAINING (non-pruned) params to prune
-                n=1,
-                dim=0,
-            )
-        else:
+        if self.method == "L2Structured":
+            for module, name in self.params:
+                prune.ln_structured(
+                    module,
+                    name,
+                    amount=epoch_ptg,  # percentage of REMAINING (non-pruned) channels to prune
+                    n=2,  # prunes channels based on L2 norm
+                    dim=1,  # prune rows
+                )
+        elif self.method == "L1Unstructured":
             prune.global_unstructured(
                 self.params,
-                pruning_method=self.method,
+                pruning_method=prune.L1Unstructured,
                 amount=epoch_ptg,  # percentage of REMAINING (non-pruned) params to prune
             )
-        
+        else:
+            raise ValueError(f"Unsupported pruning method: {self.method}")
+
     # Reports sparsity of pruning-eligible params, as well as overall model sparsity
     def report_sparsity(self):
         total = 0
