@@ -57,6 +57,8 @@ class FineTuneEvaluator(ABC):
             self.dataset = unmixed_dataset.map(self.tokenize, batched=True)
 
         #self.dataset = self.dataset
+
+        self.n_samples = n_samples + self.dataset_args["mix_n"]
         
         self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(n_samples))
         self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(n_samples))
