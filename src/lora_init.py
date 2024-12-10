@@ -125,8 +125,51 @@ class CurloraLayerInner(LoraLayer):
     def _mixed_batch_forward(
         self, x: torch.Tensor, *args: Any, adapter_names: list[str], **kwargs: Any
     ) -> torch.Tensor:
+        print("mixed_batch_forward called")
+        # Start with the base layer forward pass
         result = self.base_layer(x, *args, **kwargs)
+        torch_result_dtype = result.dtype
+
+        # Identify unique adapters in the batch
+        unique_adapters = set(adapter_names)
+        sub_batch_indices_list = []
+        for adapter in unique_adapters:
+            sub_batch_indices_list.append([index for index, item in enumerate(adapter_names) if item == adapter])
+
+        # For each adapter, compute and apply its CurLoRa delta
+        for i, active_adapter in enumerate(unique_adapters):
+            # Skip base (no LoRA applied)
+            if active_adapter == "__base__":
+                continue
+            # Check if this adapter is known/initialized
+            if active_adapter != self.adapter_name:  # or check if active_adapter in self.lora_U.keys()
+                continue
+
+            # Retrieve CurLoRa parameters for this adapter
+            # If supporting multiple adapters, you'd do something like:
+            # C = self.C[active_adapter]
+            # R = self.R[active_adapter]
+            # U = self.lora_U[active_adapter]
+            # For a single adapter scenario:
+            C = self.C
+            R = self.R
+            U = self.lora_U["lora_U"]
+
+            # Extract the sub-batch corresponding to this adapter
+            sub_batch = x[sub_batch_indices_list[i]]
+
+            # Compute delta_weight = C @ U @ R
+            delta_weight = C @ U @ R
+            # Forward pass for sub-batch with delta weights:
+            # Remember, the original forward is: output = x @ (W_base + W_adapted).t()
+            # Here, we only add the delta to the relevant sub-batch:
+            sub_output = sub_batch @ delta_weight.t()
+
+            # Add this adapter's contribution to the result at the right indices
+            result[sub_batch_indices_list[i]] += sub_output.to(torch_result_dtype)
+
         return result
+
     
     #assuming sampling method = inverted probabilities 
     def compute_C_and_R(self, W, rank, sampling_method): 
