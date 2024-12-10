@@ -21,7 +21,7 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
           dataset : Annotated[Optional[str], typer.Option(help="Dataset to use for fine-tuning")] = "imdb",
           dataset_mix_ptg : Annotated[Optional[float], typer.Option(help="Percentage of orig dataset samples to include - in training only")] = 0.05,
           dataset_mix_strategy : Annotated[Optional[str], typer.Option(help="Mixing strategy for dataset - 'old_first' or 'random'")] = "random",
-          dataset_sampling_strategy : Annotated[Optional[str], typer.Option(help="Sampling strategy for old samples dataset - 'first' or 'random' ")] = "first",
+          dataset_sampling_strategy : Annotated[Optional[str], typer.Option(help="Sampling strategy for old samples dataset - 'first' or 'random' ")] = "random",
           full_evaluate : Annotated[Optional[bool], typer.Option(help="Evaluate using all variations of pruning methods, as well as full fine-tuning")] = False,
           use_lora : Annotated[Optional[bool], typer.Option(help="Use LoRA adapters for fine-tuning")] = True,
           use_kd : Annotated[Optional[bool], typer.Option(help="Use knowledge distillation for fine-tuning")] = True,

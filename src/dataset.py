@@ -32,7 +32,7 @@ class FineTuneDataset:
         if sampling_strategy == "first":
             print(f"Taking first {mix_n} samples from original dataset")
             self.orig_dataset = load_dataset(orig_dataset_name)["train"].take(mix_n)
-        else: # UNKNOWN IF THIS WILL WORK
+        else: 
             print(f"Randomly sampling {mix_n} samples from original dataset")
             self.orig_dataset = load_dataset(orig_dataset_name)["train"].shuffle().take(mix_n)
         
