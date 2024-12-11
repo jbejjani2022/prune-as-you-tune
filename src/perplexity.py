@@ -47,7 +47,7 @@ class PPL:
 
         # if the model was finetuned with LoRA, merge the adapters into the bert backbone
         if self.is_peft_model(finetuned_seq_model):
-            print('merging lora adapters into bert...') #TODO: examine -- might cause issues for my custom implementation
+            print('merging lora adapters into bert...')
             finetuned_seq_model = finetuned_seq_model.merge_and_unload()
 
         # extract bert parameters from the finetuned seq classifier
@@ -119,7 +119,7 @@ class PPL:
         for begin_loc in tqdm(range(0, seq_len, stride)):
             end_loc = min(begin_loc + max_length, seq_len)
             input_ids = self.encodings.input_ids[:, begin_loc:end_loc].to(self.device)
-            score = self.score_save_mem(model, input_ids) #self.score(model, input_ids)
+            score = self.score(model, input_ids)
             nlls.append(score)
             if end_loc == seq_len:
                 break

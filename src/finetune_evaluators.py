@@ -33,7 +33,11 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
             "intermediate.dense",
             "output.dense",
 
-            #additional!
+        ]
+        return target_modules
+
+"""
+Additional target_modules for CuRLoRA:
 
             # Pooler Layer
             "pooler.dense",
@@ -43,14 +47,7 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
             "classifier.out_proj",
             "predictions.transform.dense",
             "predictions.decoder"
-        ]
-        return target_modules
-
-"""Found linear layer: query
-Found linear layer: key
-Found linear layer: value
-Found linear layer: dense
-Found linear layer: classifier"""
+"""
 
 
 # TODO @Amulya: fix
