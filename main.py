@@ -12,11 +12,15 @@ app = typer.Typer()
 os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
 
 @app.command()
-def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
+def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model name to use for fine-tuning")] = "bert-base-uncased",
+          n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
           sparsity_target: Annotated[Optional[float], typer.Option(help="Target percentage of parameters to prune")] = 0.5,
           num_epochs : Annotated[Optional[int], typer.Option(help="Number of training epochs")] = 5,
           output_dir : Annotated[Optional[str], typer.Option(help="Output directory for logs and model checkpoints")] = "logs",
           dataset : Annotated[Optional[str], typer.Option(help="Dataset to use for fine-tuning")] = "imdb",
+          dataset_mix_ptg : Annotated[Optional[float], typer.Option(help="Percentage of orig dataset samples to include - in training only")] = 0.05,
+          dataset_mix_strategy : Annotated[Optional[str], typer.Option(help="Mixing strategy for dataset - 'old_first' or 'random'")] = "random",
+          dataset_sampling_strategy : Annotated[Optional[str], typer.Option(help="Sampling strategy for old samples dataset - 'first' or 'random' ")] = "random",
           full_evaluate : Annotated[Optional[bool], typer.Option(help="Evaluate using all variations of pruning methods, as well as full fine-tuning")] = False,
           use_lora : Annotated[Optional[bool], typer.Option(help="Use LoRA adapters for fine-tuning")] = True,
           use_kd : Annotated[Optional[bool], typer.Option(help="Use knowledge distillation for fine-tuning")] = True,
@@ -35,10 +39,6 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # how sparse the pruned models should be after all training epochs
-    # for interleaving methods:
-    # pruning percentage per epoch = sparsity_target / num_train_epochs
-
     pruning_schedule = pruning_schedule.lower()
     if pruning_schedule != "agp":
         pruning_schedule = "linear"
@@ -48,9 +48,14 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     if pruning_start_epoch >= num_epochs:
         pruning_start_epoch = num_epochs - 1
 
-    save_dir = f"bert-{dataset}-{max_length}/{pruning_method}-{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-start{pruning_start_epoch}-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}/"
+    save_dir = f"{model_name}-{dataset}-{max_length}/{pruning_method}-{sparsity_target}sparsity-{num_epochs}epochs-{pruning_schedule}{prune_every_epoch}prune-start{pruning_start_epoch}-kd{use_kd}-alpha{kd_alpha}-temp{kd_temp}-lora{use_lora}-lorarank{lora_rank}-datamix{dataset_mix_ptg}_{dataset_sampling_strategy}_{dataset_mix_strategy}/"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+
+    dataset_args = {"dataset_name": dataset, 
+                    "mix_n": int(np.ceil(dataset_mix_ptg * n_samples)),
+                    "sampling_strategy": dataset_sampling_strategy,
+                    "mix_strategy": dataset_mix_strategy}
 
     training_args = TrainingArguments(
         output_dir=output_dir,
@@ -64,7 +69,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         dataloader_num_workers=1,
     )
 
-    print(f'dataset: {dataset}')
+    print(f'dataset_args: {dataset_args}')
     print(f'sparsity target: {sparsity_target}')
     print(f'num train epochs: {num_epochs}')
     print(training_args.device)
@@ -72,11 +77,10 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     lora_config = LoraConfig(
         task_type=TaskType.SEQ_CLS,
         r=lora_rank,                # Rank of LoRA
-        lora_alpha=lora_alpha,       # Scaling factor
-        lora_dropout=lora_dropout,    # Dropout rate
+        lora_alpha=lora_alpha,      # Scaling factor
+        lora_dropout=lora_dropout,  # Dropout rate
         use_rslora=use_rs_lora      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
     )
-
 
     pruning_args = {"method" : pruning_method,
                     "sparsity_target" : sparsity_target, 
@@ -89,18 +93,32 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
                  "temp": kd_temp, 
                  "use_kd_loss": use_kd}
 
-    evaluator = BertBaseFineTuneEvaluator(
-        n_samples=n_samples,
-        dataset=dataset,
-        training_args=training_args,
-        max_length=None,  # set max_length = None if you don't want to truncate samples
-        lora_config=lora_config,
-        device=device,
-        save_dir=save_dir,
-        pruning_args = pruning_args,
-        loss_args = loss_args,
-        eval_ppl=True
-    )
+    if model_name == "distilbert-base-uncased":
+            evaluator = DistilBertFineTuneEvaluator(
+            n_samples=n_samples,
+            dataset_args=dataset_args,
+            training_args=training_args,
+            max_length=None,  # set max_length = None if you don't want to truncate samples
+            lora_config=lora_config,
+            device=device,
+            save_dir=save_dir,
+            pruning_args = pruning_args,
+            loss_args = loss_args,
+            eval_ppl=True
+        )
+    else:  
+        evaluator = BertBaseFineTuneEvaluator(
+            n_samples=n_samples,
+            dataset_args=dataset_args,
+            training_args=training_args,
+            max_length=None,  # set max_length = None if you don't want to truncate samples
+            lora_config=lora_config,
+            device=device,
+            save_dir=save_dir,
+            pruning_args = pruning_args,
+            loss_args = loss_args,
+            eval_ppl=True
+        )
 
     if full_evaluate:
         evaluator.full_eval_run()
