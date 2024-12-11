@@ -318,6 +318,92 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         delta_weight = C @ U @ R
         return delta_weight
 
+    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
+        # First, run the base quantized linear module
+        result = self.base_layer(x)
+
+        # If adapters are disabled, just return the base result
+        if self.disable_adapters:
+            return result
+
+        # Apply each active adapter
+        #for active_adapter in self.active_adapters:
+        #    if active_adapter not in self.lora_U.keys():
+        #        continue
+            
+        # Retrieve U for the current adapter
+        U = self.lora_U[self._active_adapter]
+
+        # Compute the adapted weights
+        # Note: It's assumed self.C and self.R are already defined and match the dimensions.
+        # Make sure to move these tensors to the correct device if necessary.
+        W_adapted = self.C @ U @ self.R
+
+        # Compute the output as W + delta_W
+        #output = x @ (self.base_layer.weight + W_adapted).t()
+        output = x @ W_adapted.t()
+        if self.base_layer.bias is not None:
+            output += self.base_layer.bias
+
+        # Check for shape consistency
+        assert W_adapted.shape == self.base_layer.weight.shape, (
+            f"W_adapted shape {W_adapted.shape} does not match "
+            f"original layer weight shape {self.base_layer.weight.shape}"
+        )
+
+        expected_dtype = result.dtype
+        output = output.to(expected_dtype)
+        # Add the adapter output to the result
+        result += output
+
+        return result
+
+
+"""Forward pass in eval mode
+Input shape: torch.Size([64, 512, 768])
+Output shape: torch.Size([64, 512, 768])
+Forward pass in eval mode
+Input shape: torch.Size([64, 512, 768])
+Output shape: torch.Size([64, 512, 3072])
+Forward pass in eval mode
+Input shape: torch.Size([64, 512, 3072])
+Output shape: torch.Size([64, 512, 768])"""
+
+
+### deprecated ###
+
+"""
+
+    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
+        #if not self.training:  # During evaluation
+        #    print("Forward pass in eval mode")
+        #    print(f"Input shape: {x.shape}")
+
+        device = x.device
+        U = self.lora_U["lora_U"]
+        #W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
+        W_adapted = self.C @ U @ self.R
+
+        #output given by W + delta_W
+        output = x @ (self.base_layer.weight + W_adapted).t()
+        #output = x @ (self.base_layer.weight.to(device) + W_adapted).t()
+
+        #if not self.training:
+        #    print(f"Output shape: {output.shape}")
+
+        if self.base_layer.bias is not None:
+            output += self.base_layer.bias
+
+        assert W_adapted.shape == self.base_layer.weight.shape, (
+            f"W_adapted shape {W_adapted.shape} does not match "
+            f"original layer weight shape {self.base_layer.weight.shape}"
+        )
+
+        return output
+    
+"""
+
+"""
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> CausalLMOutput:
         # Get the original outputs from the underlying model
         outputs = self.model.forward(x, *args, **kwargs)
@@ -354,18 +440,7 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         )
 
         return outputs
-"""Forward pass in eval mode
-Input shape: torch.Size([64, 512, 768])
-Output shape: torch.Size([64, 512, 768])
-Forward pass in eval mode
-Input shape: torch.Size([64, 512, 768])
-Output shape: torch.Size([64, 512, 3072])
-Forward pass in eval mode
-Input shape: torch.Size([64, 512, 3072])
-Output shape: torch.Size([64, 512, 768])"""
-
-
-### deprecated ###
+"""
 
 
 class CurloraLayerDeprecated1(torch.nn.Module, BaseTunerLayer):
