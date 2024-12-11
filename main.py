@@ -87,7 +87,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
 
     curlora_config = CustomLoraConfig(
         task_type=TaskType.SEQ_CLS,
-        r=64,                # Rank of LoRA
+        r=64,                # Rank of LoRA (CuRLoRA has fewer trainable parameters than standard LoRA, thus used higher adapter rank for experimentation)
         lora_alpha=32,       # Scaling factor
         lora_dropout=0.1,     # Dropout rate
         sampling_method='inverted_probs'
@@ -111,6 +111,7 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         training_args=training_args,
         max_length=None,  # set max_length = None if you don't want to truncate samples
         lora_config=lora_config,
+        #lora_config=curlora_config #uncomment to run with a curlora approach (ex prune_curlora_finetune())
         device=device,
         save_dir=save_dir,
         pruning_args = pruning_args,
