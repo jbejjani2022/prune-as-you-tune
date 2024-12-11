@@ -49,6 +49,7 @@ class FineTuneDataset:
         texts = self.orig_dataset["text"]
         #print(texts)
         inputs = self.tokenizer(texts, padding=True, truncation=True, return_tensors="pt")
+        inputs.to(self.orig_model.device)
         with torch.inference_mode():
             outputs = self.orig_model(**inputs)
         #print(outputs)
