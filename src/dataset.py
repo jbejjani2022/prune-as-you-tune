@@ -4,6 +4,8 @@ Custom dataset for fine-tuning
 import torch
 from datasets import load_dataset, Dataset, concatenate_datasets,ClassLabel, DatasetDict
 import pandas as pd
+import copy
+
 
 MODEL_NAMES_ORIG_DATASETS = {
     "distilbert-base-uncased": ("wikitext", "wikitext-2-raw-v1"),
@@ -22,7 +24,7 @@ class FineTuneDataset:
                  mix_strategy: str):
 
         device = torch.device("cuda")
-        self.orig_model = model.deepcopy()
+        self.orig_model = copy.deepcopy(model)
         self.orig_model = self.orig_model.to(device)
         self.tokenizer = tokenizer
         self.unmixed_dataset = dataset
