@@ -1,10 +1,9 @@
 """
-Custom dataset for fine-tuning
+Custom dataset for fine-tuning with support for data-mixing
 """
 import torch
-from datasets import load_dataset, Dataset, concatenate_datasets,ClassLabel, DatasetDict
-import pandas as pd
 import copy
+from datasets import load_dataset, Dataset, concatenate_datasets,ClassLabel, DatasetDict
 
 
 MODEL_NAMES_ORIG_DATASETS = {

@@ -1,35 +1,17 @@
-from peft import LoraConfig
-from peft import get_peft_model
-
 import torch
-import torch.nn as nn
-
-from peft.tuners.lora.layer import LoraLayer, BaseTunerLayer
-from peft.tuners.lycoris_utils import LycorisLayer
-
-from typing import Optional
-
-import torch
-import torch.nn as nn
-import warnings
-from typing import Optional, Any, Union
 from torch import nn
-from abc import abstractmethod
-from collections import defaultdict
+from peft import LoraConfig, get_peft_model
+from peft.tuners.lora.layer import LoraLayer
+import warnings
+from typing import Any, Union
 
-from transformers.modeling_outputs import CausalLMOutput
-import torch
-from typing import Any
 
 class CustomLoraConfig(LoraConfig):
 
     def __init__(self, **kwargs):
         super().__init__()
-
         self.r = kwargs.get('r', self.r)
         self.sampling_method = kwargs.get('sampling_method', 'inverted_probs')
-        #self.device = kwargs.get('device')
-        #print(f'customloraconfig: {self.device}')
 
 class CurloraLayerInner(LoraLayer):
     def __init__(self,
@@ -44,7 +26,7 @@ class CurloraLayerInner(LoraLayer):
             lora_bias: bool = False,
             **kwargs,):
 
-        LoraLayer.__init__(self, base_layer) #will initialize lora_A, lora_B param dicts, but they will be empty
+        LoraLayer.__init__(self, base_layer)  # Initializes empty lora_A, lora_B param dicts
 
         self.update_layer(
             adapter_name,
@@ -60,14 +42,10 @@ class CurloraLayerInner(LoraLayer):
         self.base_layer = base_layer
         self._disable_adapters = False
         self.merged_adapters = []
-        #self.use_dora: dict[str, bool] = {} #no need to override these parameters
-        #self.lora_bias: dict[str, bool] = {}
-        #self.lora_magnitude_vector = nn.ModuleDict() 
-        #self._caches: dict[str, Any] = {}
         self.ephemeral_gpu_offload = kwargs.get("ephemeral_gpu_offload", False)
         self.kwargs = kwargs
 
-        #save r, sampling_method
+        # Save r and sampling_method
         r = kwargs.get("r", 64)
         sm = kwargs.get('sampling_method', 'inverted_probs')
 
@@ -77,16 +55,16 @@ class CurloraLayerInner(LoraLayer):
 
         W = base_layer.weight.data
         self.C, self.R = self.compute_C_and_R(W, r, sm)
-        #freeze C, R (we will only update U)
+        # Freeze C, R (we will only update U)
         self.C.requires_grad = False
         self.R.requires_grad = False
 
-        #U must be a member of ParameterDict in order to be registered by peft as a trainable parameter
+        # U must be a member of ParameterDict in order to be registered by peft as a trainable parameter
         self.lora_U = nn.ParameterDict({
             "lora_U": nn.Parameter(torch.zeros(self.C.size(1), self.R.size(0)), requires_grad=True)
         })
 
-        self.adapter_name = adapter_name #defaults to "default"
+        self.adapter_name = adapter_name  # Defaults to "default"
 
     def update_layer(
         self,
@@ -109,14 +87,14 @@ class CurloraLayerInner(LoraLayer):
 
         self.lora_dropout.update(nn.ModuleDict({adapter_name: lora_dropout_layer}))
 
-        #NOTE: Standard LoraLayer would init A, B here, but we init C, R, and U within __init__()
+        # NOTE: Standard LoraLayer would init A, B here, but we init C, R, and U within __init__()
 
     def reset_lora_parameters(self, adapter_name, init_lora_weights):
-        #we shouldn't need to reset parameters, in our use case
+        # We don't need to reset parameters, in our use case
         pass
 
-    #NOTE: skipping scale_layer, unscale_layer implementation. The base class implementations shouldn't affect C, U, R at all
-    #NOTE: reimplimenting check_forward_args and mixed_batch_forward. Don't *think* the base implementations should affect curlora, but just in case
+    # NOTE: skipping scale_layer, unscale_layer implementation. The base class implementations shouldn't affect C, U, R at all
+    # NOTE: reimplimenting check_forward_args and mixed_batch_forward. Don't *think* the base implementations should affect curlora, but just in case
 
     def _check_forward_args(self, x, *args, **kwargs):
         pass
@@ -124,29 +102,29 @@ class CurloraLayerInner(LoraLayer):
     def _mixed_batch_forward(
         self, x: torch.Tensor, *args: Any, adapter_names: list[str], **kwargs: Any
     ) -> torch.Tensor:
-        #base layer forward pass
+        # Base layer forward pass
         result = self.base_layer(x, *args, **kwargs)
         torch_result_dtype = result.dtype
 
-        #select all unique adapters (in our use case, should only be "default")
-        #it's still important to implement this function, however, in case automatic standard lora replacement is accidentally being triggered
+        # Select all unique adapters (in our use case, should only be "default")
+        # It's still important to implement this function, however, in case automatic standard lora replacement is accidentally being triggered
         unique_adapters = set(adapter_names)
         sub_batch_indices_list = []
         for adapter in unique_adapters:
             sub_batch_indices_list.append([index for index, item in enumerate(adapter_names) if item == adapter])
 
-        #compute curlora delta
+        # Compute curlora delta
         for i, active_adapter in enumerate(unique_adapters):
             if active_adapter == "__base__":
                 continue
-            if active_adapter != self.adapter_name:  #or check if active_adapter in self.lora_U.keys()
+            if active_adapter != self.adapter_name:  # Or check if active_adapter in self.lora_U.keys()
                 continue
 
             C = self.C
             R = self.R
             U = self.lora_U["lora_U"]
 
-            #extract sub-batch corresponding to this adapter
+            # Extract sub-batch corresponding to this adapter
             sub_batch = x[sub_batch_indices_list[i]]
 
             delta_weight = C @ U @ R
@@ -157,38 +135,33 @@ class CurloraLayerInner(LoraLayer):
         return result
 
     
-    #only supported sampling method currently is inverted probabilities 
+    # Only supported sampling method currently is inverted probabilities 
     def compute_C_and_R(self, W, rank, sampling_method): 
-        #device = W.device
         num_rows, num_cols = W.size()
-        #adjust rank if needed
+        # Adjust rank if needed
         rank = min(rank, num_rows, num_cols)
-        #print(f"desired rank: {rank}, num_rows: {num_rows}, num_cols: {num_cols}")
-
         total_norm = torch.norm(W) ** 2
 
-        #col norm and probs
+        # Col norm and probs
         col_norms = torch.norm(W, dim=0) ** 2 
         col_probs = col_norms / total_norm 
-        #invert col probs
+        # Invert col probs
         inv_col_probs = 1 / col_probs
         inv_col_probs /= inv_col_probs.sum() #normalize
 
-        #row norms and probs (chatgpt corrected)
+        # Row norms and probs (chatgpt corrected)
         row_norms = torch.norm(W, dim=1) ** 2 
         row_probs = row_norms / total_norm 
-        #inver row probs
+        # Inver row probs
         inv_row_probs = 1 / row_probs
-        inv_row_probs /= inv_row_probs.sum() #normalize
+        inv_row_probs /= inv_row_probs.sum() # Normalize
 
-        #sample (based on inverted probabilities => lowest probabilities prioritized)
+        # Sample (based on inverted probabilities => lowest probabilities prioritized)
         col_indices = torch.multinomial(inv_col_probs, rank, replacement=False)
         row_indices = torch.multinomial(inv_row_probs, rank, replacement=False)
 
         C = W[:, col_indices]
         R = W[row_indices, :]
-        #C = W[:, col_indices].clone()
-        #R = W[row_indices, :].clone()
     
         return C, R
     
@@ -208,6 +181,7 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         lora_bias: bool = False,
         **kwargs,
     ) -> None:
+        
         super().__init__()
         CurloraLayerInner.__init__(self, base_layer, adapter_name, r, **kwargs)
         self.fan_in_fan_out = fan_in_fan_out
@@ -223,7 +197,7 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
             use_dora=use_dora,
             lora_bias=lora_bias,
         )
-        self.is_target_conv_1d_layer = is_target_conv_1d_layer #shouldn't be relevant to this use case
+        self.is_target_conv_1d_layer = is_target_conv_1d_layer # Shouldn't be relevant to this use case
 
     def merge(self, safe_merge: bool = False) -> None:
         if self.merged:
@@ -233,14 +207,14 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         delta_weight = self.get_delta_weight()
 
         if safe_merge:
-            #clone original weights and check for NaNs after merge
+            # Clone original weights and check for NaNs after merge
             orig_weights = base_layer.weight.data.clone()
             merged_weights = orig_weights + delta_weight
             if not torch.isfinite(merged_weights).all():
                 raise ValueError("NaNs detected in the merged weights.")
             base_layer.weight.data = merged_weights
         else:
-            #default! only implemented safe_merge in case required by larger peft
+            # Default : only implemented safe_merge in case required by larger peft
             base_layer.weight.data += delta_weight
 
         self.merged_adapters.append(self._active_adapter)
@@ -251,18 +225,16 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
             return
 
         active_adapter = self.merged_adapters.pop()
-        #we only have one adapter in this use case. Thus, active_adapter should match self._active_adapter
+        # We only have one adapter in this use case. Thus, active_adapter should match self._active_adapter
         if active_adapter == self._active_adapter:
             base_layer = self.get_base_layer()
             delta_weight = self.get_delta_weight()
 
-            #subtract out delta_weight
+            # Subtract out delta_weight
             base_layer.weight.data -= delta_weight
 
-    #called by peft module itself (thus needs to be overriden)
+    # Called by peft module itself (thus needs to be overriden)
     def get_delta_weight(self) -> torch.Tensor:
-        #device = self.base_layer.weight.device
-        #dtype = self.base_layer.weight.dtype
         C = self.C
         R = self.R
         U = self.lora_U["lora_U"]
@@ -271,27 +243,26 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         return delta_weight
 
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
-        #forward pass of base_layer
+        # Forward pass of base_layer
         result = self.base_layer(x)
 
         if self.disable_adapters:
             return result
             
-        #compute W_adapted
+        # Compute W_adapted
         U = self.lora_U["lora_U"]
         W_adapted = self.C @ U @ self.R
 
-        #compute output from W_adapted (will add this to result, so result = x @ (self.base_layer.weight + W_adapted).t())
+        # Compute output from W_adapted (will add this to result, so result = x @ (self.base_layer.weight + W_adapted).t())
         output = x @ W_adapted.t()
         if self.base_layer.bias is not None:
             output += self.base_layer.bias
 
-        #check shape!
+        # Check shape and dtype
         assert W_adapted.shape == self.base_layer.weight.shape, (
             f"W_adapted shape {W_adapted.shape} does not match "
             f"original layer weight shape {self.base_layer.weight.shape}"
         )
-        #check/enforce dtype!
         expected_dtype = result.dtype
         output = output.to(expected_dtype)
 
@@ -300,8 +271,8 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
 
 
 ### deprecated ###
-#NOTE: following approach works, but with poor performance
-#Likely because 1) doesn't take advantage of peft library optimizations and 2) merge_and_unload() function needed for proper integration with perplexity
+# NOTE: following approach works, but with poor performance
+# Likely because 1) doesn't take advantage of peft library optimizations and 2) merge_and_unload() function needed for proper integration with perplexity
 
 def get_peft_model_with_curlora(model, peft_config, device):
     if isinstance(peft_config, CustomLoraConfig):

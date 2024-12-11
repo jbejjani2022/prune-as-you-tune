@@ -18,6 +18,7 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
                  pruning_args,
                  loss_args,
                  eval_ppl):
+        
         model_name = 'bert-base-uncased'
         super().__init__(model_name, n_samples, dataset_args, training_args, max_length, lora_config, device, save_dir, pruning_args, loss_args, eval_ppl)
         
@@ -62,6 +63,7 @@ class DistilBertFineTuneEvaluator(FineTuneEvaluator):
                  pruning_args,
                  loss_args,
                  eval_ppl):
+        
         model_name = 'distilbert-base-uncased'
         super().__init__(model_name, n_samples, dataset_args, training_args, max_length, lora_config, device, save_dir, pruning_args, loss_args, eval_ppl)
                 

@@ -1,15 +1,13 @@
-from transformers import TrainingArguments
-from peft import LoraConfig, TaskType
+import os
 import torch
+import numpy as np
 import typer
 from typing import Optional, Annotated
-from torch import nn
-
-from src.lora_init import CustomLoraConfig, CurloraLayer
+from transformers import TrainingArguments
+from peft import LoraConfig, TaskType
 
 from src.finetune_evaluators import DistilBertFineTuneEvaluator, BertBaseFineTuneEvaluator
-import os
-import numpy as np
+from src.lora_init import CustomLoraConfig
 
 app = typer.Typer()
 
@@ -90,9 +88,21 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
         task_type=TaskType.SEQ_CLS,
         r=64,                # Rank of LoRA (CuRLoRA has fewer trainable parameters than standard LoRA, so use higher adapter rank)
         lora_alpha=32,       # Scaling factor
-        lora_dropout=0.1,     # Dropout rate
+        lora_dropout=0.1,    # Dropout rate
         sampling_method='inverted_probs'
     )
+    
+    """
+    Planned for future work:
+    # svd-based decomposition
+    pissalora_config = LoraConfig(
+        task_type=TaskType.SEQ_CLS,
+        r=32,                
+        lora_alpha=32,       
+        lora_dropout=0.1,
+        init_lora_weights='pissa'
+    )
+    """
 
     pruning_args = {"method" : pruning_method,
                     "sparsity_target" : sparsity_target, 
@@ -144,15 +154,3 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
     # lora_prune_interleave()
     # lora_prune_kd_interleave()
     # prune_curlora_finetune
-
-"""
-Planned for future work:
-#svd based decomposition
-pissalora_config = LoraConfig(
-    task_type=TaskType.SEQ_CLS,
-    r=32,                
-    lora_alpha=32,       
-    lora_dropout=0.1,
-    init_lora_weights='pissa'
-)
-"""

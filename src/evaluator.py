@@ -1,28 +1,25 @@
 """
-FineTuneEvaluator class for evaluating finetuning methods on particular models
+FineTuneEvaluator class for evaluating fine-tuning methods on particular models
 Implemented by BertBaseFineTuneEvaluator and DistilBertBaseFineTuneEvaluator in src.evaluator
 """
 
 
+import copy
+import evaluate
+from abc import ABC, abstractmethod
+import numpy as np
+from torch import nn
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, DataCollatorWithPadding
 from peft import LoraConfig, get_peft_model
-from abc import ABC, abstractmethod
-import evaluate
-import copy
-import numpy as np
 
 from src.kd_trainer import KDTrainer
 from src.logger import LoggerCallback
 from src.pruner import PruningCallback
 from src.perplexity import PPL
 from src.dataset import FineTuneDataset
-
 from src.lora_init import CustomLoraConfig, CurloraLayer, get_peft_model_with_curlora
 
-import torch
-from torch import nn
-from torch.utils.data import DataLoader
 
 class FineTuneEvaluator(ABC):
     
@@ -45,7 +42,6 @@ class FineTuneEvaluator(ABC):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         # load and tokenize the dataset
         self.dataset_args = dataset_args
-        # AG 2024-12-10: This is not "cleanly" all in dataset.py bc we need num labels for the model
 
         unmixed_dataset = load_dataset(dataset_args["dataset_name"])
         self.num_labels = len(set(unmixed_dataset['train']['label']))
@@ -374,7 +370,7 @@ class FineTuneEvaluator(ABC):
         custom_module_mapping = {nn.Linear: CurloraLayer}
         self.lora_config._register_custom_module(custom_module_mapping)
 
-        #get model with CustomLora integration
+        # Get model with CustomLora integration
         #get_peft_model_with_curlora(model, self.lora_config, device)
         model = get_peft_model(model, self.lora_config)
         #model.to(device)
@@ -389,8 +385,8 @@ class FineTuneEvaluator(ABC):
         
         pruner = self.get_pruner(model, lora=True)
         pruner.report_sparsity()
-        #print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
-        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        print(f"\nPruning {pruner.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
+        pruner.prune_pretrained(epoch=0, epoch_ptg=pruner.sparsity_target)
         pruner.report_sparsity()
 
         logger = self.get_logger('prune_curlora_finetune.csv', 'checkpoints/prune_curlora_finetune')
@@ -401,7 +397,7 @@ class FineTuneEvaluator(ABC):
         if self.eval_ppl:
             self.report_perplexity(model)
 
-    #same as lora_prune_kd_interleave, but uses a svd based decomposition. see: https://github.com/huggingface/peft/blob/main/src/peft/tuners/lora/config.py
+    # Same as lora_prune_kd_interleave but with svd-based decomposition. see: https://github.com/huggingface/peft/blob/main/src/peft/tuners/lora/config.py
     def svdlora_prune_kd_interleave(self):
         """print('\n********* GAUSSIAN LORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
         model = copy.deepcopy(self.model)

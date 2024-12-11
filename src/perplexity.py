@@ -131,12 +131,8 @@ class PPL:
         # calculates true perplexity; expects model to be a causal LM, e.g. GPT2LMHeadModel
         # source: https://huggingface.co/docs/transformers/en/perplexity
         max_length = model.config.n_positions
-        print(f'max length = {max_length}')
         stride = 512
         seq_len = self.encodings.input_ids.size(1)
-        
-        print(f'encodings.input_ids.size = {self.encodings.input_ids.size}')
-        print(f'seq len = {seq_len}')
 
         nlls = []
         prev_end_loc = 0
