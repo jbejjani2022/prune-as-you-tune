@@ -18,7 +18,6 @@ class FineTuneDataset:
                  model_name: str,
                  tokenizer,
                  dataset,
-                 finetune_dataset_name: str, # TODO remove
                  mix_n : int,
                  sampling_strategy: str,
                  mix_strategy: str):
@@ -30,7 +29,6 @@ class FineTuneDataset:
         self.unmixed_dataset = dataset
         self.sampling_strategy = sampling_strategy
         self.mix_strategy = mix_strategy
-        #self.finetune_dataset_name = finetune_dataset_name
 
         orig_dataset_name, orig_dataset_dir = MODEL_NAMES_ORIG_DATASETS[model_name]
         if sampling_strategy == "first":

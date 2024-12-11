@@ -167,27 +167,7 @@ if __name__ == "__main__":
     model_name = 'bert-base-uncased'
     
     # Get perplexity of base, non-finetuned bert model
-    # model = AutoModelForMaskedLM.from_pretrained(model_name).to(device)
-    ppl = PPL(model_name, device)
-    # ppl = evaluator.calculate_perplexity_pseudo(model)
-    # print(f'perplexity = {ppl}')
-    
-    # Test loading finetuned model checkpoints and evaluating pseudo perplexity for each
-    # Each checkpoint is an instance of AutoModelForSequenceClassification.from_pretrained('bert-base-uncased')
-    # finetuned on 'imdb' for sequence classification
-    
-    # root = 'bert-imdb-r32-nomaxlen/'
-    # paths = ['50pct-sparsity-5epochs/checkpoints/full_finetune/ckpt-epoch-5',
-    #         '50pct-sparsity-10epochs/checkpoints/full_finetune/ckpt-epoch-10',
-    #         '80pct-sparsity-8epochs/checkpoints/full_finetune/ckpt-epoch-8',
-    #         '80pct-sparsity-16epochs/checkpoints/full_finetune/ckpt-epoch-2']
-    
-    root = 'bert-imdb-r32-nomaxlen/'
-    paths = [#'50pct-sparsity-5epochs/checkpoints/lora_finetune/ckpt-epoch-5',
-            '50pct-sparsity-10epochs/checkpoints/lora_finetune/ckpt-epoch-10',
-            '80pct-sparsity-8epochs/checkpoints/lora_finetune/ckpt-epoch-8',
-            '80pct-sparsity-16epochs/checkpoints/lora_finetune/ckpt-epoch-14']
-    
-    for ckpt in paths:
-        perplexity = ppl.eval(path = root + ckpt)
-        print(f'perplexity = {perplexity}')
+    model = AutoModelForMaskedLM.from_pretrained(model_name).to(device)
+    evaluator = PPL(model_name, device)
+    ppl = evaluator.calculate_perplexity_pseudo(model)
+    print(f'perplexity = {ppl}')

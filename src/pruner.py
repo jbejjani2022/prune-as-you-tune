@@ -5,7 +5,6 @@ Custom callback for progressively pruning pretrained weights during fine-tuning 
 
 from transformers import TrainerCallback
 import torch.nn.utils.prune as prune
-import torch
 import torch.nn as nn
 import numpy as np
 import math
@@ -48,8 +47,7 @@ class PruningCallback(TrainerCallback):
 
         print(f"Pruning schedule: {self.schedule}")
         
-        print(f"Total sparsity will be {sum(self.schedule)}, target was {sparsity_target}")
-        # assert(sum(self.schedule)==sparsity_target)
+        assert(sum(self.schedule)==sparsity_target), f"Total sparsity will be {sum(self.schedule)}, target is {sparsity_target}"
 
         self.params = []  # params to prune, list of tuples: (module, param_name)
 
@@ -83,7 +81,6 @@ class PruningCallback(TrainerCallback):
         print(f'Total params: {self.total_params}')
 
     # Count trainable and total model parameters
-    # TODO
     def _count_parameters(self):
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in self.model.parameters())
@@ -103,7 +100,6 @@ class PruningCallback(TrainerCallback):
 
     # Applies pruning `weight_mask` to pretrained, non-LoRA model parameters
     # Retains previous mask, allowing cumulative pruning
-    # TODO
     def prune_pretrained(self, epoch, epoch_ptg=None):
         if epoch_ptg is None:
             assert(epoch == 0)

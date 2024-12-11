@@ -12,7 +12,6 @@ app = typer.Typer()
 os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
 
 @app.command()
-# AG 24-12-10: pass dataset args to evaluator
 def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model name to use for fine-tuning")] = "bert-base-uncased",
           n_samples : Annotated[Optional[int], typer.Option(help="Number of samples, use 10 or less for rapid testing")] = 1000,
           sparsity_target: Annotated[Optional[float], typer.Option(help="Target percentage of parameters to prune")] = 0.5,
@@ -40,10 +39,6 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # how sparse the pruned models should be after all training epochs
-    # for interleaving methods:
-    # pruning percentage per epoch = sparsity_target / num_train_epochs
-
     pruning_schedule = pruning_schedule.lower()
     if pruning_schedule != "agp":
         pruning_schedule = "linear"
@@ -60,8 +55,7 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
     dataset_args = {"dataset_name": dataset, 
                     "mix_n": int(np.ceil(dataset_mix_ptg * n_samples)),
                     "sampling_strategy": dataset_sampling_strategy,
-                    "mix_strategy": dataset_mix_strategy,
-                    "finetune_dataset_name": dataset}
+                    "mix_strategy": dataset_mix_strategy}
 
     training_args = TrainingArguments(
         output_dir=output_dir,
@@ -83,11 +77,10 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
     lora_config = LoraConfig(
         task_type=TaskType.SEQ_CLS,
         r=lora_rank,                # Rank of LoRA
-        lora_alpha=lora_alpha,       # Scaling factor
-        lora_dropout=lora_dropout,    # Dropout rate
+        lora_alpha=lora_alpha,      # Scaling factor
+        lora_dropout=lora_dropout,  # Dropout rate
         use_rslora=use_rs_lora      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
     )
-
 
     pruning_args = {"method" : pruning_method,
                     "sparsity_target" : sparsity_target, 

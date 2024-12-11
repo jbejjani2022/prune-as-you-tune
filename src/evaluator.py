@@ -1,6 +1,6 @@
 """
-Abstract FineTuneEvaluator class
-For evaluating finetuning methods on particular models
+FineTuneEvaluator class for evaluating finetuning methods on particular models
+Implemented by BertBaseFineTuneEvaluator and DistilBertBaseFineTuneEvaluator in src.evaluator
 """
 
 
@@ -50,26 +50,18 @@ class FineTuneEvaluator(ABC):
         self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
         self.model = self.model.to(device)
         if self.dataset_args["mix_n"] > 0:
-            # AG 2025-12-10: TODO make this a clean dictionary unpacking
-            self.dataset = FineTuneDataset(self.model, self.model_name, self.tokenizer, unmixed_dataset, self.dataset_args["finetune_dataset_name"], self.dataset_args["mix_n"], self.dataset_args["sampling_strategy"], self.dataset_args["mix_strategy"]).get_mixed_dataset()
+            self.dataset = FineTuneDataset(self.model, self.model_name, self.tokenizer, unmixed_dataset, self.dataset_args["mix_n"], self.dataset_args["sampling_strategy"], self.dataset_args["mix_strategy"]).get_mixed_dataset()
             self.dataset = self.dataset.map(self.tokenize, batched=True)
         else:
             self.dataset = unmixed_dataset.map(self.tokenize, batched=True)
 
-        #self.dataset = self.dataset
-
         self.n_samples = n_samples + self.dataset_args["mix_n"]
-        self.train_dataset = self.dataset["train"].shuffle(seed=42) #.select(range(n_samples))
-        self.eval_dataset = self.dataset["test"].shuffle(seed=42) #.select(range(n_samples))
+        self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(n_samples))
+        self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(n_samples))
         print(f'{self.train_dataset.num_rows} training samples')
         print(f'{self.eval_dataset.num_rows} evaluation samples')
         self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
         self.metric = evaluate.load("accuracy")
-        # load model
-        
-
-        # TODO labels issue
-
 
         # hyperparameters for lora finetuning, pruning, and KD
         self.training_args = training_args
@@ -92,7 +84,7 @@ class FineTuneEvaluator(ABC):
     def get_target_modules(self):
         pass 
         
-    # Tokenizes `examples` using `self.tokenizer
+    # Tokenizes `examples` using `self.tokenizer`
     def tokenize(self, examples):
         if self.max_length is None:
             return self.tokenizer(examples["text"], padding="max_length", truncation=True)
@@ -155,23 +147,23 @@ class FineTuneEvaluator(ABC):
     def full_eval_run(self):
         self.full_finetune()
         self.lora_finetune()
+        self.prune_no_finetune()
         self.prune_full_finetune()
         self.prune_lora_finetune()
         self.lora_prune_interleave()
         self.lora_prune_kd_interleave()
         self.lora_prune_kd_interleave_not_rs()
     
+    # Evaluate a fine-tuning method
+    # use_lora : whether to use lora fine-tuning (will apply self.lora_config)
+    # use_kd : whether to fine-tune with custom KD loss
+    # prune_interleave : whether to apply interleaved pruning
     def evaluate(self, use_lora=True, use_kd=False, prune_interleave=True):
         logger = self.get_logger('custom_eval.csv', 'checkpoints/custom_eval')
         model = copy.deepcopy(self.model)
         pruner = None
         print(self.pruning_args)
         
-        """if self.prune_only:
-            pruner = self.get_pruner(model=model, lora=False)
-            use_lora = False
-            # use_kd = False - AG 2024-12-02 I personally feel that KD would be ~meaningless, but maybe not? 
-        """
         if use_lora:
             model = get_peft_model(model, self.lora_config)
             model.print_trainable_parameters()
@@ -309,7 +301,7 @@ class FineTuneEvaluator(ABC):
         if self.eval_ppl:
             self.report_perplexity(model)
     
-    # Prunes model once then fine-tunes LoRA adapters
+    # Prunes model in one step then fine-tunes LoRA adapters
     def prune_lora_finetune(self):
         print('\n********* PRUNE THEN LoRA FINETUNE *********\n')
         model = copy.deepcopy(self.model)
@@ -330,7 +322,7 @@ class FineTuneEvaluator(ABC):
         if self.eval_ppl:
             self.report_perplexity(model)
     
-    # Prunes model once then fine-tunes LoRA adapters
+    # Prunes model in one step then fine-tunes LoRA adapters
     def prune_lora_finetune_not_rs(self):
         print('\n********* PRUNE THEN (NOT RS) LoRA FINETUNE *********\n')
         model = copy.deepcopy(self.model)
@@ -354,7 +346,7 @@ class FineTuneEvaluator(ABC):
             self.report_perplexity(model)
             
     def prune_no_finetune(self):
-        print('\n********* PRUNE, THEN GET PERPLEXITY *********\n')
+        print('\n********* PRUNE AND DO NOT FINETUNE *********\n')
         model = copy.deepcopy(self.model)
         
         pruner = self.get_pruner(model, lora=False)
