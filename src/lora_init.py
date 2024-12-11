@@ -320,7 +320,7 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
 
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> CausalLMOutput:
         # Get the original outputs from the underlying model
-        #outputs = self.model.forward(x, *args, **kwargs)
+        outputs = self.model.forward(x, *args, **kwargs)
         # `outputs` is a ModelOutput, e.g., CausalLMOutput, which includes `loss`, `logits`, etc.
 
         device = x.device
