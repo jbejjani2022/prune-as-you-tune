@@ -90,6 +90,9 @@ Note that by default, perplexity on WikiText-2 is calculated and printed at the 
 
 Checkpoints and logs are saved at the end of epoch.  
 Sparsity and perplexity data are printed to standard output, in addition to other training information.
+
+For reference: Training on IMDb for 5 epochs with KD (followed by perplexity evaluation) took us about 60 minutes on one A100 GPU. 
+
 ## Authors
 
 - Joey Bejjani [@jbejjani2022](https://github.com/jbejjani2022)
