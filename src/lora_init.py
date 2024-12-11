@@ -332,7 +332,7 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         #        continue
             
         # Retrieve U for the current adapter
-        U = self.lora_U[self.adapter_name]
+        U = self.lora_U["lora_U"]
 
         # Compute the adapted weights
         # Note: It's assumed self.C and self.R are already defined and match the dimensions.
