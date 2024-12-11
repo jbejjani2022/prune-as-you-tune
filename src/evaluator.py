@@ -154,7 +154,7 @@ class FineTuneEvaluator(ABC):
         self.lora_prune_kd_interleave()
         self.lora_prune_kd_interleave_not_rs()
     
-    # Evaluate a fine-tuning method
+    # Evaluates a fine-tuning method
     # use_lora : whether to use lora fine-tuning (will apply self.lora_config)
     # use_kd : whether to fine-tune with custom KD loss
     # prune_interleave : whether to apply interleaved pruning
