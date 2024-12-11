@@ -59,8 +59,8 @@ class FineTuneEvaluator(ABC):
         #self.dataset = self.dataset
 
         self.n_samples = n_samples + self.dataset_args["mix_n"]
-        self.train_dataset = self.dataset["train"].shuffle(seed=42).select(range(n_samples))
-        self.eval_dataset = self.dataset["test"].shuffle(seed=42).select(range(n_samples))
+        self.train_dataset = self.dataset["train"].shuffle(seed=42) #.select(range(n_samples))
+        self.eval_dataset = self.dataset["test"].shuffle(seed=42) #.select(range(n_samples))
         print(f'{self.train_dataset.num_rows} training samples')
         print(f'{self.eval_dataset.num_rows} evaluation samples')
         self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
@@ -297,8 +297,8 @@ class FineTuneEvaluator(ABC):
         
         pruner = self.get_pruner(model, lora=False)
         pruner.report_sparsity()
-        if self.pruning_args["pruning_start_epoch"] == 0:
-            pruner.prune_pretrained(epoch=0)
+        print(f"\nPruning {pruner.sparsity_target * 100:.2f}% of pretrained weights")
+        pruner.prune_pretrained(epoch=0, epoch_ptg=pruner.sparsity_target)
         pruner.report_sparsity()
         
         logger = self.get_logger('prune_full_finetune.csv', 'checkpoints/prune_full_finetune')
@@ -318,8 +318,8 @@ class FineTuneEvaluator(ABC):
         
         pruner = self.get_pruner(model, lora=True)
         pruner.report_sparsity()
-        if self.pruning_args["pruning_start_epoch"] == 0:
-                pruner.prune_pretrained(epoch=0)
+        print(f"\nPruning {pruner.sparsity_target * 100:.2f}% of pretrained weights")
+        pruner.prune_pretrained(epoch=0, epoch_ptg=pruner.sparsity_target)
         pruner.report_sparsity()
         
         logger = self.get_logger('prune_lora_finetune.csv', 'checkpoints/prune_lora_finetune')
@@ -359,8 +359,8 @@ class FineTuneEvaluator(ABC):
         
         pruner = self.get_pruner(model, lora=False)
         pruner.report_sparsity()
-        print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights")
-        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        print(f"\nPruning {pruner.sparsity_target * 100:.2f}% of pretrained weights")
+        pruner.prune_pretrained(epoch=0, epoch_ptg=pruner.sparsity_target)
         pruner.report_sparsity()
         pruner.remove()
         
