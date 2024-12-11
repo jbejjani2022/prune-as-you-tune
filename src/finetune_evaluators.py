@@ -31,9 +31,23 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
 
             # Feed-Forward Modules
             "intermediate.dense",
-            "output.dense"
+            "output.dense",
+
         ]
         return target_modules
+
+"""
+Additional target_modules for CuRLoRA:
+
+            # Pooler Layer
+            "pooler.dense",
+            
+            # Task-Specific Heads
+            "classifier.dense",
+            "classifier.out_proj",
+            "predictions.transform.dense",
+            "predictions.decoder"
+"""
 
 
 class DistilBertFineTuneEvaluator(FineTuneEvaluator):

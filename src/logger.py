@@ -17,6 +17,8 @@ class LoggerCallback(TrainerCallback):
     def on_log(self, args, state, control, logs=None, **kwargs):
         if logs is None:
             return
+        #print(f"Logs keys: {list(logs.keys())}")
+
         # Check if the current log contains the required metrics after each epoch
         if "epoch" in logs and "eval_accuracy" in logs and "eval_loss" in logs:
             epoch = logs.get("epoch")
@@ -28,7 +30,11 @@ class LoggerCallback(TrainerCallback):
                 writer = csv.writer(file)
                 writer.writerow([epoch, eval_accuracy, eval_loss])
 
+    #NOTE: loading from checkpoints is incompatible with curlora
+    #huggingface peft has minimal support for custom modules, including automatic merge: https://huggingface.co/docs/peft/developer_guides/custom_models
+    #"information about the custom module does not persist when you save the model"
     def on_epoch_end(self, args, state, control, **kwargs):
+        #print(f' Kwargs: {kwargs}')
         # Save a full checkpoint (model, optimizer, scheduler, etc.) at the end of each epoch
         epoch = int(state.epoch)
         checkpoint_path = os.path.join(self.checkpoint_dir, f"ckpt-epoch-{epoch}")

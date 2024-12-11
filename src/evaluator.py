@@ -18,6 +18,11 @@ from src.pruner import PruningCallback
 from src.perplexity import PPL
 from src.dataset import FineTuneDataset
 
+from src.lora_init import CustomLoraConfig, CurloraLayer, get_peft_model_with_curlora
+
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
 
 class FineTuneEvaluator(ABC):
     
@@ -67,6 +72,8 @@ class FineTuneEvaluator(ABC):
         self.training_args = training_args
         self.num_epochs = self.training_args.num_train_epochs
         self.lora_config = lora_config
+        print(f'lora_config.r: {lora_config.r}')
+        #print(f'lora_config.sampling_method: {lora_config.sampling_method}')
         self.lora_config.target_modules = self.get_target_modules()
         self.pruning_args = pruning_args
         self.loss_args = loss_args
@@ -358,6 +365,61 @@ class FineTuneEvaluator(ABC):
         
         if self.eval_ppl:
             self.report_perplexity(model)
+
+    #same as prune_lora_finetune, but uses curlora matrix decomposition
+    def prune_curlora_finetune(self, device):
+        print('\n********* PRUNE THEN CURLoRA FINETUNE *********\n')
+        model = copy.deepcopy(self.model)
+
+        custom_module_mapping = {nn.Linear: CurloraLayer}
+        self.lora_config._register_custom_module(custom_module_mapping)
+
+        #get model with CustomLora integration
+        #get_peft_model_with_curlora(model, self.lora_config, device)
+        model = get_peft_model(model, self.lora_config)
+        #model.to(device)
+
+        # After applying custom_module_mapping and get_peft_model
+        for name, module in model.named_modules():
+            if isinstance(module, CurloraLayer):
+                print(f"Found CurloraLayer: {name}")
+                for param_name, param in module.named_parameters():
+                    print(f"  Param: {param_name}, requires_grad: {param.requires_grad}")
+
+        
+        pruner = self.get_pruner(model, lora=True)
+        pruner.report_sparsity()
+        #print(f"\nPruning {self.sparsity_target * 100:.2f}% of pretrained weights before finetuning")
+        pruner.prune_pretrained(epoch=0, epoch_ptg=self.sparsity_target)
+        pruner.report_sparsity()
+
+        logger = self.get_logger('prune_curlora_finetune.csv', 'checkpoints/prune_curlora_finetune')
+        trainer = self.get_trainer(model, logger_callback=logger)
+        trainer.train()
+        pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)
+
+    #same as lora_prune_kd_interleave, but uses a svd based decomposition. see: https://github.com/huggingface/peft/blob/main/src/peft/tuners/lora/config.py
+    def svdlora_prune_kd_interleave(self):
+        """print('\n********* GAUSSIAN LORA PRUNE KD FINETUNING (INTERLEAVED) *********\n')
+        model = copy.deepcopy(self.model)
+        frozen_model = copy.deepcopy(model)
+        model = get_peft_model(model, self.lora_config)
+        model.print_trainable_parameters()
+        pruner = self.get_pruner(model, lora=True)
+        pruner.prune_pretrained(epoch=0)
+        
+        logger = self.get_logger('lora_prune_kd_interleave.csv', 'checkpoints/lore_prune_kd_interleave')
+        trainer = self.get_kd_trainer(model, frozen_model, pruning_callback=pruner, logger_callback=logger)
+        trainer.train()
+        pruner.remove()
+        
+        if self.eval_ppl:
+            self.report_perplexity(model)"""
+        return
+
 
     def report_perplexity(self, model):
         perplexity = self.ppl.eval(model=model)

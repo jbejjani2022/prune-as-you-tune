@@ -3,6 +3,10 @@ from peft import LoraConfig, TaskType
 import torch
 import typer
 from typing import Optional, Annotated
+from torch import nn
+
+from src.lora_init import CustomLoraConfig, CurloraLayer
+
 from src.finetune_evaluators import DistilBertFineTuneEvaluator, BertBaseFineTuneEvaluator
 import os
 import numpy as np
@@ -82,6 +86,14 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
         use_rslora=use_rs_lora      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
     )
 
+    curlora_config = CustomLoraConfig(
+        task_type=TaskType.SEQ_CLS,
+        r=64,                # Rank of LoRA (CuRLoRA has fewer trainable parameters than standard LoRA, so use higher adapter rank)
+        lora_alpha=32,       # Scaling factor
+        lora_dropout=0.1,     # Dropout rate
+        sampling_method='inverted_probs'
+    )
+
     pruning_args = {"method" : pruning_method,
                     "sparsity_target" : sparsity_target, 
                     "num_epochs" : num_epochs, 
@@ -100,6 +112,7 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
             training_args=training_args,
             max_length=None,  # set max_length = None if you don't want to truncate samples
             lora_config=lora_config,
+            #lora_config=curlora_config  #uncomment to run with a curlora approach (ex prune_curlora_finetune())
             device=device,
             save_dir=save_dir,
             pruning_args = pruning_args,
@@ -113,6 +126,7 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
             training_args=training_args,
             max_length=None,  # set max_length = None if you don't want to truncate samples
             lora_config=lora_config,
+            #lora_config=curlora_config  #uncomment to run with a curlora approach (ex prune_curlora_finetune())
             device=device,
             save_dir=save_dir,
             pruning_args = pruning_args,
@@ -129,3 +143,16 @@ def run_and_eval (model_name : Annotated[Optional[str], typer.Option(help="Model
     # prune_lora_finetune()
     # lora_prune_interleave()
     # lora_prune_kd_interleave()
+    # prune_curlora_finetune
+
+"""
+Planned for future work:
+#svd based decomposition
+pissalora_config = LoraConfig(
+    task_type=TaskType.SEQ_CLS,
+    r=32,                
+    lora_alpha=32,       
+    lora_dropout=0.1,
+    init_lora_weights='pissa'
+)
+"""

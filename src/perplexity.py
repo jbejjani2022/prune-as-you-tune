@@ -52,10 +52,12 @@ class PPL:
 
         # extract bert parameters from the finetuned seq classifier
         base_model = finetuned_seq_model.bert
+        #base_model = finetuned_seq_model.distilbert
         
         # copy over finetuned seq model parameters to a masked LM architecture
         masked_lm_model = AutoModelForMaskedLM.from_pretrained(self.model_name, config=base_model.config).to(self.device)
         masked_lm_model.bert = base_model
+        #masked_lm_model.distilbert = base_model
         
         # turn on eval mode
         masked_lm_model.eval()
