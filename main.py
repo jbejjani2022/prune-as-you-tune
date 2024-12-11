@@ -129,3 +129,15 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     # lora_prune_interleave()
     # lora_prune_kd_interleave()
     # prune_curlora_finetune
+
+"""
+Planned for future work:
+#svd based decomposition
+pissalora_config = LoraConfig(
+    task_type=TaskType.SEQ_CLS,
+    r=32,                
+    lora_alpha=32,       
+    lora_dropout=0.1,
+    init_lora_weights='pissa'
+)
+"""
