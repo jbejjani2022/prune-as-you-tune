@@ -85,6 +85,14 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
         use_rslora=use_rs_lora      # Use RSLoRA (https://huggingface.co/blog/damjan-k/rslora)
     )
 
+    curlora_config = CustomLoraConfig(
+        task_type=TaskType.SEQ_CLS,
+        r=64,                # Rank of LoRA
+        lora_alpha=32,       # Scaling factor
+        lora_dropout=0.1,     # Dropout rate
+        sampling_method='inverted_probs'
+    )
+
 
     pruning_args = {"method" : pruning_method,
                     "sparsity_target" : sparsity_target, 
