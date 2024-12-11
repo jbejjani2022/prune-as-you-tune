@@ -17,6 +17,10 @@ from torch import nn
 from abc import abstractmethod
 from collections import defaultdict
 
+from transformers.modeling_outputs import CausalLMOutput
+import torch
+from typing import Any
+
 class CustomLoraConfig(LoraConfig):
 
     def __init__(self, **kwargs):
@@ -314,33 +318,42 @@ class CurloraLayer(nn.Module, CurloraLayerInner):
         delta_weight = C @ U @ R
         return delta_weight
 
-
-    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
-        #if not self.training:  # During evaluation
-        #    print("Forward pass in eval mode")
-        #    print(f"Input shape: {x.shape}")
+    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> CausalLMOutput:
+        # Get the original outputs from the underlying model
+        #outputs = self.model.forward(x, *args, **kwargs)
+        # `outputs` is a ModelOutput, e.g., CausalLMOutput, which includes `loss`, `logits`, etc.
 
         device = x.device
         U = self.lora_U["lora_U"]
-        #W_adapted = self.C.to(device) @ U.to(device) @ self.R.to(device)
+
+        # Calculate the LoRA adaptation
         W_adapted = self.C @ U @ self.R
 
-        #output given by W + delta_W
-        output = x @ (self.base_layer.weight + W_adapted).t()
-        #output = x @ (self.base_layer.weight.to(device) + W_adapted).t()
-
-        #if not self.training:
-        #    print(f"Output shape: {output.shape}")
-
+        # Compute the modified logits
+        adapted_logits = x @ (self.base_layer.weight + W_adapted).t()
         if self.base_layer.bias is not None:
-            output += self.base_layer.bias
+            adapted_logits += self.base_layer.bias
 
+        # Ensure dimensions match
         assert W_adapted.shape == self.base_layer.weight.shape, (
             f"W_adapted shape {W_adapted.shape} does not match "
             f"original layer weight shape {self.base_layer.weight.shape}"
         )
 
-        return output
+        # Update the logits in the ModelOutput
+        # `outputs` is of type ModelOutput, which is a namedtuple-like structure
+        # We can create a new ModelOutput with adapted logits and preserve other fields
+        # If you know the exact type, use it directly. For generic usage:
+        # If outputs is a CausalLMOutput:
+        outputs = CausalLMOutput(
+            loss=outputs.loss,
+            logits=adapted_logits,
+            past_key_values=outputs.past_key_values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions
+        )
+
+        return outputs
 """Forward pass in eval mode
 Input shape: torch.Size([64, 512, 768])
 Output shape: torch.Size([64, 512, 768])
