@@ -1,8 +1,16 @@
+"""Instructions:
+Vary alpha, temp in BertFineTuneEvaluator.
+"""
+
 from transformers import TrainingArguments
 from peft import LoraConfig, TaskType
 import torch
 import typer
 from typing import Optional, Annotated
+from torch import nn
+
+from src.lora_init import CustomLoraConfig, CurloraLayer
+
 from src.finetune_evaluators import DistilBertFineTuneEvaluator, BertBaseFineTuneEvaluator
 import os
 import numpy as np
@@ -111,3 +119,4 @@ def run_and_eval (n_samples : Annotated[Optional[int], typer.Option(help="Number
     # prune_lora_finetune()
     # lora_prune_interleave()
     # lora_prune_kd_interleave()
+    # prune_curlora_finetune

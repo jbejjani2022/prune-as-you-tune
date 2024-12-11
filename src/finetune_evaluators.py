@@ -31,9 +31,26 @@ class BertBaseFineTuneEvaluator(FineTuneEvaluator):
 
             # Feed-Forward Modules
             "intermediate.dense",
-            "output.dense"
+            "output.dense",
+
+            #additional!
+
+            # Pooler Layer
+            "pooler.dense",
+            
+            # Task-Specific Heads
+            "classifier.dense",
+            "classifier.out_proj",
+            "predictions.transform.dense",
+            "predictions.decoder"
         ]
         return target_modules
+
+"""Found linear layer: query
+Found linear layer: key
+Found linear layer: value
+Found linear layer: dense
+Found linear layer: classifier"""
 
 
 # TODO @Amulya: fix

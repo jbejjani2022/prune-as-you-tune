@@ -47,15 +47,17 @@ class PPL:
 
         # if the model was finetuned with LoRA, merge the adapters into the bert backbone
         if self.is_peft_model(finetuned_seq_model):
-            print('merging lora adapters into bert...')
+            print('merging lora adapters into bert...') #TODO: examine -- might cause issues for my custom implementation
             finetuned_seq_model = finetuned_seq_model.merge_and_unload()
 
         # extract bert parameters from the finetuned seq classifier
         base_model = finetuned_seq_model.bert
+        #base_model = finetuned_seq_model.distilbert
         
         # copy over finetuned seq model parameters to a masked LM architecture
         masked_lm_model = AutoModelForMaskedLM.from_pretrained(self.model_name, config=base_model.config).to(self.device)
         masked_lm_model.bert = base_model
+        #masked_lm_model.distilbert = base_model
         
         # turn on eval mode
         masked_lm_model.eval()
@@ -117,7 +119,7 @@ class PPL:
         for begin_loc in tqdm(range(0, seq_len, stride)):
             end_loc = min(begin_loc + max_length, seq_len)
             input_ids = self.encodings.input_ids[:, begin_loc:end_loc].to(self.device)
-            score = self.score(model, input_ids)
+            score = self.score_save_mem(model, input_ids) #self.score(model, input_ids)
             nlls.append(score)
             if end_loc == seq_len:
                 break
@@ -165,6 +167,7 @@ class PPL:
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_name = 'bert-base-uncased'
+    #model_name = 'distilbert-base-uncased'
     
     # Get perplexity of base, non-finetuned bert model
     # model = AutoModelForMaskedLM.from_pretrained(model_name).to(device)
@@ -182,11 +185,11 @@ if __name__ == "__main__":
     #         '80pct-sparsity-8epochs/checkpoints/full_finetune/ckpt-epoch-8',
     #         '80pct-sparsity-16epochs/checkpoints/full_finetune/ckpt-epoch-2']
     
-    root = 'bert-imdb-r32-nomaxlen/'
-    paths = [#'50pct-sparsity-5epochs/checkpoints/lora_finetune/ckpt-epoch-5',
-            '50pct-sparsity-10epochs/checkpoints/lora_finetune/ckpt-epoch-10',
-            '80pct-sparsity-8epochs/checkpoints/lora_finetune/ckpt-epoch-8',
-            '80pct-sparsity-16epochs/checkpoints/lora_finetune/ckpt-epoch-14']
+    root = 'bert-imdb-r32-nomaxlen/' #'distilbert-imdb-r32-nomaxlen/'
+    paths = ['50pct-sparsity-5epochs/checkpoints/lora_finetune/ckpt-epoch-5']
+            #'50pct-sparsity-10epochs/checkpoints/lora_finetune/ckpt-epoch-10',
+            #'80pct-sparsity-8epochs/checkpoints/lora_finetune/ckpt-epoch-8',
+            #'80pct-sparsity-16epochs/checkpoints/lora_finetune/ckpt-epoch-14']
     
     for ckpt in paths:
         perplexity = ppl.eval(path = root + ckpt)
