@@ -1,7 +1,11 @@
 
 # Prune As You Tune: LoRA-Enabled Model Compression
 
-This repository contains the codebase for "Prune As You Tune: LoRA-Enabled Model Compression," our CS2420 Final Project.
+This repository contains the codebase for the paper "Prune As You Tune: LoRA-Enabled Model Compression," our CS2420 Final Project.
+
+![Graphical overview of Prune As You Tune](static/fig1.png)
+Graphical overview of our method. Prune As You Tune (PAYT) interleaves pruning of pre-trained parameters with LoRA fine-tuning updates guided by a custom Knowledge Distillation loss function. PAYT can achieve up to 50% sparsity with minimal accuracy degradation and lower perplexity on the original task compared to baselines such as full fine-tuning and prune-then-fine-tune methods. Compared to state-of-the-art approaches, PAYT offers superior accuracy, model compression, and retention of pre-training knowledge.
+
 
 `src` contains the Prune As You Tune implementation.  
 `dev` contains initial experimentation and tests.  
