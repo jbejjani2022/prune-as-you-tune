@@ -3,6 +3,8 @@
 
 This repository contains the codebase for the paper "Prune As You Tune: LoRA-Enabled Model Compression," our CS2420 Final Project.
 
+You can read the paper [here](https://github.com/jbejjani2022/prune-as-you-tune/blob/main/paper.pdf).
+
 <div align="center">
   <img src="static/fig1.png" alt="Graphical overview of Prune As You Tune" width="600">
 </div>
